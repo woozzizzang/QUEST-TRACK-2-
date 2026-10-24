@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import QApplication, QLabel, QMenu
 
 ART = Path(__file__).parent / "art"
 MARGIN = 16         # 화면 구석에서 띄울 거리 (픽셀)
@@ -36,6 +36,21 @@ class Pet(QLabel):
             area.right() - self.width() - MARGIN,
             area.bottom() - self.height() - MARGIN,
         )
+
+    # 왼쪽 버튼으로 끌어 옮기기
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drag_offset = event.globalPosition().toPoint() - self.pos()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.LeftButton:
+            self.move(event.globalPosition().toPoint() - self.drag_offset)
+
+    # 오른쪽 클릭 메뉴
+    def contextMenuEvent(self, event):
+        menu = QMenu(self)
+        menu.addAction("끄기", QApplication.quit)
+        menu.exec(event.globalPos())
 
 
 if __name__ == "__main__":
