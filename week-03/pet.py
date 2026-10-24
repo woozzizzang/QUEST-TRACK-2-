@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication, QLabel, QMenu
 ART = Path(__file__).parent / "art"
 MARGIN = 16         # 화면 구석에서 띄울 거리 (픽셀)
 REST_MS = 500       # 키를 안 누른 지 이만큼 지나면 두 손 들기로 (밀리초)
+SLEEP_MS = 10_000   # 키를 안 누른 지 이만큼 지나면 졸기로 (밀리초)
 
 IDLE, RIGHT, LEFT, SLEEP = range(4)     # pose1 ~ pose4
 
@@ -49,6 +50,10 @@ class Pet(QLabel):
         self.rest_timer = QTimer(self, singleShot=True, interval=REST_MS)
         self.rest_timer.timeout.connect(lambda: self.show_pose(IDLE))
 
+        self.sleep_timer = QTimer(self, singleShot=True, interval=SLEEP_MS)
+        self.sleep_timer.timeout.connect(lambda: self.show_pose(SLEEP))
+        self.sleep_timer.start()
+
         self.keys = KeyListener()
         self.keys.pressed.connect(self.on_key)
         self.keys.start()
@@ -58,6 +63,7 @@ class Pet(QLabel):
         self.show_pose(self.hand)
         self.hand = LEFT if self.hand == RIGHT else RIGHT
         self.rest_timer.start()
+        self.sleep_timer.start()    # 누를 때마다 10초를 처음부터 다시 잰다
 
     def show_pose(self, index):
         self.setPixmap(self.poses[index])
