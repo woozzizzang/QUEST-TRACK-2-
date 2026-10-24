@@ -4,12 +4,30 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from pynput import keyboard
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMenu
 
 ART = Path(__file__).parent / "art"
 MARGIN = 16         # 화면 구석에서 띄울 거리 (픽셀)
+REST_MS = 500       # 키를 안 누른 지 이만큼 지나면 두 손 들기로 (밀리초)
+
+IDLE, RIGHT, LEFT, SLEEP = range(4)     # pose1 ~ pose4
+
+
+class KeyListener(QObject):
+    # 키가 눌렸다는 사실만 알린다. 어떤 키인지는 넘기지 않는다.
+    pressed = Signal()
+
+    def start(self):
+        self.listener = keyboard.Listener(on_press=self.on_press)
+        self.listener.daemon = True
+        self.listener.start()
+
+    def on_press(self, _key):
+        # _key 는 쓰지도 저장하지도 않는다
+        self.pressed.emit()
 
 
 class Pet(QLabel):
@@ -22,8 +40,24 @@ class Pet(QLabel):
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         self.poses = [QPixmap(str(ART / f"pose{n}.png")) for n in range(1, 5)]
-        self.show_pose(0)
+        self.show_pose(IDLE)
         self.move_to_corner()
+
+        self.count = 0              # 오늘 누른 횟수
+        self.hand = RIGHT           # 다음에 누를 손
+
+        self.rest_timer = QTimer(self, singleShot=True, interval=REST_MS)
+        self.rest_timer.timeout.connect(lambda: self.show_pose(IDLE))
+
+        self.keys = KeyListener()
+        self.keys.pressed.connect(self.on_key)
+        self.keys.start()
+
+    def on_key(self):
+        self.count += 1
+        self.show_pose(self.hand)
+        self.hand = LEFT if self.hand == RIGHT else RIGHT
+        self.rest_timer.start()
 
     def show_pose(self, index):
         self.setPixmap(self.poses[index])
