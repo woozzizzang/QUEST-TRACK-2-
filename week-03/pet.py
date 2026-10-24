@@ -11,8 +11,14 @@ from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMenu, QVBoxLayout, QWidget
 
-ART = Path(__file__).parent / "art"
-COUNT_FILE = Path(__file__).parent / "count.json"   # 날짜와 숫자만 저장
+if getattr(sys, "frozen", False):
+    # pet.exe 로 묶었을 때: 그림은 exe 안에서, count.json 은 exe 옆에
+    ART = Path(sys._MEIPASS) / "art"
+    HERE = Path(sys.executable).parent
+else:
+    ART = Path(__file__).parent / "art"
+    HERE = Path(__file__).parent
+COUNT_FILE = HERE / "count.json"    # 날짜와 숫자만 저장
 MARGIN = 16         # 화면 구석에서 띄울 거리 (픽셀)
 REST_MS = 500       # 키를 안 누른 지 이만큼 지나면 두 손 들기로 (밀리초)
 SLEEP_MS = 10_000   # 키를 안 누른 지 이만큼 지나면 졸기로 (밀리초)
