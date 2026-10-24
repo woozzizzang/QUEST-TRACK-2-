@@ -1,0 +1,13 @@
+# 재료 상자
+.venv/
+
+# 오늘 누른 횟수 (날짜와 숫자)
+count.json
+
+# PyInstaller 로 묶을 때 생기는 것
+build/
+dist/
+*.spec
+
+# Python 이 저절로 만드는 것
+__pycache__/
