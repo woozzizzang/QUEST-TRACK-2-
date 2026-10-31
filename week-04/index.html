@@ -26,7 +26,7 @@
 </style>
 </head>
 <body>
-<canvas id="game" width="960" height="544"></canvas>
+<canvas id="game" width="960" height="540"></canvas>
 <p>← → 이동 · 스페이스 점프 · 슬라임을 피해서 금화를 모두 모으기 · R 처음부터</p>
 <p class="credits">
   슬라임 그림: Animated Slime by Calciumtrice (CC-BY 3.0)
@@ -35,8 +35,9 @@
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const SCALE = 2;            // 픽셀 그림을 2배로 키워서 그림
-const W = 480, H = 272;     // 게임 속 화면 크기 (2배 하기 전)
+const SCALE = 3;            // 픽셀 그림을 3배로 키워서 그림
+const VIEW_W = 320, VIEW_H = 180;   // 한 화면에 보이는 크기 (3배 하기 전)
+const H = 272;              // 숲 전체 높이 (배경 그림 높이와 같음)
 const TILE = 16;            // 땅 타일 한 칸 16×16
 const WORLD_W = 1440;       // 옆으로 이어지는 숲 너비 (화면 세 개)
 
@@ -338,20 +339,23 @@ function drawText(text, x, y, size, color = '#fff', align = 'left') {
   ctx.fillText(text, x, y);
 }
 
-let cam = 0;
+let cam = 0, camY = H - VIEW_H;
 function draw(time) {
-  cam = Math.max(0, Math.min(WORLD_W - W, knight.x + KB.w / 2 - W / 2));   // 기사를 화면 가운데에 두고 따라감
+  cam = Math.max(0, Math.min(WORLD_W - VIEW_W, knight.x + KB.w / 2 - VIEW_W / 2));   // 기사를 화면 가운데에 두고 따라감
+  // 위아래는 기사가 발판에 올라가면 부드럽게 따라 올라감 (점프할 때마다 출렁이지 않게 조금씩)
+  const targetY = Math.max(0, Math.min(H - VIEW_H, knight.y + KB.h - VIEW_H * 0.7));
+  camY += (targetY - camY) * 0.08;
   ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
   ctx.imageSmoothingEnabled = false;     // 픽셀 그림이 흐려지지 않게 (최근접 필터)
 
   // 배경 두 겹: 뒤 레이어일수록 천천히 지나감 (패럴랙스)
   for (const layer of PARALLAX) {
     const off = -((cam * layer.speed) % layer.w);
-    for (let x = off; x < W; x += layer.w) ctx.drawImage(images[layer.key], Math.round(x), 0);
+    for (let x = off; x < VIEW_W; x += layer.w) ctx.drawImage(images[layer.key], Math.round(x), -Math.round(camY));
   }
 
   ctx.save();
-  ctx.translate(-Math.round(cam), 0);
+  ctx.translate(-Math.round(cam), -Math.round(camY));
   ctx.drawImage(worldCanvas, 0, 0);
 
   // 금화: 옆으로 좁아졌다 넓어졌다 하며 도는 것처럼 보이게

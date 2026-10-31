@@ -35,9 +35,10 @@ export default async ({ ev, down, up, tap, shot, sleep, waitUntil, log }) => {
   // 계속 걸어서 초록 슬라임에 부딪히기
   const hit = await waitUntil('knight.lives < 3', 8000);
   await up('ArrowRight');
+  await sleep(100);                      // 슬라임 동작은 부딪힌 다음 장면부터 바뀌므로 잠깐 기다림
   log('초록 슬라임에 부딪힘:', hit, '/ 하트', await ev('knight.lives'), '/ 깜빡임', (await ev('knight.hurt')) > 0,
       '/ 슬라임 동작', await ev('slimes[0].anim'));
-  await sleep(100); await shot('04-hit');
+  await shot('04-hit');
   await sleep(1600);
   log('1.5초 뒤 다시 맞을 수 있음:', (await ev('knight.hurt')) <= 0);
 
