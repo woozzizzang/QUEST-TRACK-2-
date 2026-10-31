@@ -1,4 +1,4 @@
-// 연습 게임: 딸기 하나하나에 실제로 닿을 수 있는지 확인
+// 연습 게임: 딸기가 놓일 수 있는 칸(berrySpots) 전부에 실제로 닿을 수 있는지 확인
 // 게임의 update() 를 그대로 빌려서, 아무렇게나 키를 눌러 보는 시험을 수천 번 돌린다.
 //   node week-04/check/run.mjs week-04/practice/index.html week-04/check/practice-reach.mjs
 export default async ({ ev, tap, sleep, log }) => {
@@ -8,6 +8,7 @@ export default async ({ ev, tap, sleep, log }) => {
     playSfx = () => {};
     let seed = 7;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    berries = berrySpots().map(s => ({ x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, taken: false }));
     resetPlayer();
     const pool = [JSON.stringify(p)];      // 지금까지 서 본 자리들
     const seen = new Set();
@@ -31,8 +32,9 @@ export default async ({ ev, tap, sleep, log }) => {
       berries.forEach((b, i) => { if (b.taken) reached.add(i); });
     }
     keys.ArrowLeft = keys.ArrowRight = false;
-    return berries.map((b, i) => '딸기' + (i + 1) + ' (칸 ' + (b.x / 16 | 0) + ',' + (b.y / 16 | 0) + '): '
-      + (reached.has(i) ? '닿음' : '못 닿음')).join('\\n');
+    const missed = berries.filter((b, i) => !reached.has(i)).map(b => (b.x / 16 | 0) + ',' + (b.y / 16 | 0));
+    return '놓일 수 있는 칸 ' + berries.length + '개 중 닿은 칸 ' + reached.size + '개'
+      + (missed.length ? '\\n못 닿은 칸(가로,세로): ' + missed.join('  ') : '');
   })()`);
   log(result);
 };

@@ -93,23 +93,23 @@ function playSfx(name) {
 }
 
 // ===== 맵 =====
-// # 땅  S 딸기  P 시작 위치  . 빈칸   (가로 30칸 × 세로 17칸)
+// # 땅  P 시작 위치  . 빈칸   (가로 30칸 × 세로 17칸)  딸기는 시작할 때마다 무작위로 뿌림
 const LEVEL = [
   '..............................',
   '..............................',
   '..............................',
-  '..S.....................S.....',
+  '..............................',
   '.####.................####....',
   '..............................',
-  '..........S.......S...........',
+  '..............................',
   '........#####...#####.........',
   '..............................',
   '..............................',
-  '...S......................S...',
+  '..............................',
   '..####..................####..',
   '..............................',
-  '.............S................',
-  '......P.....................S.',
+  '..............................',
+  '......P.......................',
   '############...###############',
   '############...###############',
 ];
@@ -149,14 +149,45 @@ function buildLevelCanvas() {
 }
 
 // ===== 딸기 =====
+const BERRY_COUNT = 15;
 let berries = [];
 let startPos;
+LEVEL.forEach((row, ty) => [...row].forEach((ch, tx) => {
+  if (ch === 'P') startPos = { x: tx * TILE, y: ty * TILE + TILE };
+}));
+
+// 딸기를 놓아도 되는 칸: 빈칸이고, 바로 아래 1~3칸 안에 밟을 땅이 있는 곳 (서서 먹거나 점프 한 번에 닿음)
+// 시작 자리 바로 옆은 빼서 시작하자마자 먹어 버리지 않게 하고, 왼쪽 위 점수 글자 밑도 뺌
+function berrySpots() {
+  const spots = [];
+  const sx = startPos.x / TILE, sy = startPos.y / TILE - 1;
+  for (let ty = 0; ty < ROWS; ty++) {
+    for (let tx = 0; tx < COLS; tx++) {
+      if (isSolid(tx, ty)) continue;
+      if (Math.abs(tx - sx) <= 2 && Math.abs(ty - sy) <= 2) continue;
+      if (tx <= 5 && ty <= 1) continue;
+      for (let k = 1; k <= 3; k++) {
+        if (ty + k >= ROWS) break;
+        if (isSolid(tx, ty + k)) { spots.push({ tx, ty }); break; }
+      }
+    }
+  }
+  return spots;
+}
+
+// 놓을 수 있는 칸을 섞은 뒤, 이미 고른 딸기와 붙어 있지 않은 칸만 골라 15개를 채움
 function resetBerries() {
-  berries = [];
-  LEVEL.forEach((row, ty) => [...row].forEach((ch, tx) => {
-    if (ch === 'S') berries.push({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, taken: false });
-    if (ch === 'P') startPos = { x: tx * TILE, y: ty * TILE + TILE };
-  }));
+  const spots = berrySpots();
+  for (let i = spots.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [spots[i], spots[j]] = [spots[j], spots[i]];
+  }
+  const picked = [];
+  for (const s of spots) {
+    if (picked.length === BERRY_COUNT) break;
+    if (picked.every(q => Math.abs(q.tx - s.tx) >= 2 || Math.abs(q.ty - s.ty) >= 2)) picked.push(s);
+  }
+  berries = picked.map(s => ({ x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, taken: false }));
 }
 
 // ===== 개구리 =====
