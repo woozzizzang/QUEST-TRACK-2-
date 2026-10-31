@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>딸기 모으기 · 연습 게임</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #1d1b2a;
+    color: #eee;
+    font-family: "Malgun Gothic", sans-serif;
+  }
+  canvas {
+    border: 4px solid #2c2a3d;
+    border-radius: 8px;
+    image-rendering: pixelated;
+  }
+  p { margin: 12px 0 0; color: #aaa; font-size: 14px; }
+</style>
+</head>
+<body>
+<canvas id="game" width="960" height="544"></canvas>
+<p>← → 이동 · 스페이스 점프 (공중에서 한 번 더, 벽에 붙어서도 가능) · R 처음부터</p>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const SCALE = 2;            // 픽셀 그림을 2배로 키워서 그림
+const W = 480, H = 272;     // 게임 속 화면 크기 (2배 하기 전)
+const TILE = 16;            // 타일 한 칸 16×16
+
+// ===== 에셋 불러오기 =====
+// 그림: 32×32 프레임이 가로 한 줄로 이어진 시트 (drop.json 값을 그대로 옮김)
+const IMAGE_FILES = {
+  'idle':        'assets/images/ninja-frog_idle.png',
+  'run':         'assets/images/ninja-frog_run.png',
+  'jump':        'assets/images/ninja-frog_jump.png',
+  'double-jump': 'assets/images/ninja-frog_double-jump.png',
+  'fall':        'assets/images/ninja-frog_fall.png',
+  'wall-jump':   'assets/images/ninja-frog_wall-jump.png',
+  'hit':         'assets/images/ninja-frog_hit.png',
+  'strawberry':  'assets/images/strawberry_spin.png',
+  'terrain':     'assets/images/terrain-tileset.png',
+  'background':  'assets/images/blue-pattern-background.png',
+};
+const ANIMS = {
+  'idle':        { frames: 11, fps: 20, loop: true },
+  'run':         { frames: 12, fps: 20, loop: true },
+  'jump':        { frames: 1,  fps: 20, loop: true },
+  'double-jump': { frames: 6,  fps: 20, loop: true },
+  'fall':        { frames: 1,  fps: 10, loop: true },
+  'wall-jump':   { frames: 5,  fps: 20, loop: true },
+  'hit':         { frames: 7,  fps: 20, loop: false },
+  'strawberry':  { frames: 17, fps: 12, loop: true },
+};
+const FRAME = 32;
+
+const images = {};
+function loadImage(key, src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => { images[key] = img; resolve(); };
+    img.onerror = () => reject(src);
+    img.src = src;
+  });
+}
+function loadAllImages() {
+  return Promise.all(Object.entries(IMAGE_FILES).map(([key, src]) => loadImage(key, src)));
+}
+
+// 소리: 못 찾은 파일은 soundErrors 에 모아 화면에 보여 줌
+const soundErrors = [];
+function loadSound(src) {
+  const a = new Audio(src);
+  a.addEventListener('error', () => soundErrors.push(src));
+  return a;
+}
+const sounds = {
+  jump: loadSound('assets/sounds/jump.wav'),
+  coin: loadSound('assets/sounds/coin.wav'),
+  bgm:  loadSound('assets/sounds/stage-1.ogg'),
+};
+sounds.bgm.loop = true;     // 배경음악은 끝나면 처음부터 다시
+sounds.bgm.volume = 0.4;
+function playSfx(name) {
+  const s = sounds[name].cloneNode();   // 빨리 여러 번 눌러도 겹쳐서 나게 복사해서 재생
+  s.volume = 0.6;
+  s.play().catch(() => {});
+}
+
+// ===== 맵 =====
+// # 땅  S 딸기  P 시작 위치  . 빈칸   (가로 30칸 × 세로 17칸)
+const LEVEL = [
+  '..............................',
+  '..............................',
+  '..............................',
+  '..S.....................S.....',
+  '.####.................####....',
+  '..............................',
+  '..........S.......S...........',
+  '........#####...#####.........',
+  '..............................',
+  '..............................',
+  '...S......................S...',
+  '..####..................####..',
+  '..............................',
+  '.............S................',
+  '......P.....................S.',
+  '############...###############',
+  '############...###############',
+];
+const COLS = 30, ROWS = 17;
+
+function isSolid(tx, ty) {
+  if (tx < 0 || tx >= COLS) return true;    // 화면 양옆은 벽
+  if (ty < 0 || ty >= ROWS) return false;
+  return LEVEL[ty][tx] === '#';
+}
+
+// 둘레를 보고 타일셋의 풀밭 3×3 블록(가로 6~8칸, 세로 0~2칸) 중 알맞은 칸을 고름
+function groundTile(tx, ty) {
+  const at = (x, y) => (x < 0 || x >= COLS || y >= ROWS) ? true : (y >= 0 && LEVEL[y][x] === '#');
+  const left = at(tx - 1, ty), right = at(tx + 1, ty);
+  const up = at(tx, ty - 1), down = at(tx, ty + 1);
+  const col = 6 + (left && right ? 1 : left ? 2 : right ? 0 : 1);
+  const row = !up ? 0 : down ? 1 : 2;
+  return [col, row];
+}
+
+// 맵은 한 번만 그려 두고 매 화면마다 통째로 붙임
+let levelCanvas;
+function buildLevelCanvas() {
+  levelCanvas = document.createElement('canvas');
+  levelCanvas.width = W;
+  levelCanvas.height = H;
+  const g = levelCanvas.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  for (let ty = 0; ty < ROWS; ty++) {
+    for (let tx = 0; tx < COLS; tx++) {
+      if (LEVEL[ty][tx] !== '#') continue;
+      const [c, r] = groundTile(tx, ty);
+      g.drawImage(images.terrain, c * TILE, r * TILE, TILE, TILE, tx * TILE, ty * TILE, TILE, TILE);
+    }
+  }
+}
+
+// ===== 딸기 =====
+let berries = [];
+let startPos;
+function resetBerries() {
+  berries = [];
+  LEVEL.forEach((row, ty) => [...row].forEach((ch, tx) => {
+    if (ch === 'S') berries.push({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, taken: false });
+    if (ch === 'P') startPos = { x: tx * TILE, y: ty * TILE + TILE };
+  }));
+}
+
+// ===== 개구리 =====
+const BODY = { ox: 7, oy: 6, w: 18, h: 26 };   // 32×32 그림 안에서 몸이 있는 부분 (부딪힘 판정용)
+const SPEED = 110, GRAVITY = 900, JUMP = -320, MAX_FALL = 380, WALL_SLIDE = 60;
+let p;
+function resetPlayer() {
+  p = {
+    x: startPos.x, y: startPos.y - BODY.h,
+    vx: 0, vy: 0, facing: 1,
+    onGround: false, jumpsLeft: 0, wall: 0, kick: 0, doubleJumpTime: 0,
+    state: 'play', anim: 'idle', animTime: 0,
+  };
+}
+
+function hitsWall(x, y) {
+  const x0 = Math.floor(x / TILE), x1 = Math.floor((x + BODY.w - 0.001) / TILE);
+  const y0 = Math.floor(y / TILE), y1 = Math.floor((y + BODY.h - 0.001) / TILE);
+  for (let ty = y0; ty <= y1; ty++)
+    for (let tx = x0; tx <= x1; tx++)
+      if (isSolid(tx, ty)) return true;
+  return false;
+}
+function moveX(dx) {
+  p.x += dx;
+  if (hitsWall(p.x, p.y)) {
+    p.x = dx > 0 ? Math.floor((p.x + BODY.w) / TILE) * TILE - BODY.w : (Math.floor(p.x / TILE) + 1) * TILE;
+    p.vx = 0;
+  }
+}
+function moveY(dy) {
+  p.onGround = false;
+  p.y += dy;
+  if (hitsWall(p.x, p.y)) {
+    if (dy > 0) {
+      p.y = Math.floor((p.y + BODY.h) / TILE) * TILE - BODY.h;
+      p.onGround = true;
+      p.jumpsLeft = 1;
+    } else {
+      p.y = (Math.floor(p.y / TILE) + 1) * TILE;
+    }
+    p.vy = 0;
+  }
+}
+
+function setAnim(name) {
+  if (p.anim !== name) { p.anim = name; p.animTime = 0; }
+}
+
+// ===== 키보드 =====
+const keys = {};
+let jumpPressed = false;
+let started = false;
+addEventListener('keydown', e => {
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
+  if (!p) return;                       // 아직 불러오는 중
+  if (!started) {                       // 브라우저는 키를 한 번 눌러야 소리를 내게 해 줌
+    started = true;
+    sounds.bgm.play().catch(() => {});
+    return;
+  }
+  keys[e.code] = true;
+  if (e.code === 'Space' && !e.repeat) jumpPressed = true;
+  if (e.code === 'KeyR') { resetBerries(); resetPlayer(); }
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ===== 움직이기 =====
+let score = 0;
+function update(dt) {
+  p.animTime += dt;
+
+  if (p.state === 'hit') {              // 구덩이에 빠짐 → 피격 그림이 끝나면 처음 자리로
+    if (p.animTime >= ANIMS.hit.frames / ANIMS.hit.fps + 0.2) resetPlayer();
+    jumpPressed = false;
+    return;
+  }
+
+  const dir = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
+  if (p.kick > 0) {
+    p.kick -= dt;                       // 벽 점프 직후 잠깐은 벽 반대쪽으로 밀려남
+  } else {
+    p.vx = dir * SPEED;
+    if (dir) p.facing = dir;
+  }
+
+  // 공중에서 떨어지다가 벽 쪽으로 누르고 있으면 벽에 붙어 천천히 미끄러짐
+  p.wall = (!p.onGround && p.vy > 0 && dir !== 0 && hitsWall(p.x + dir, p.y)) ? dir : 0;
+
+  if (jumpPressed) {
+    if (p.onGround) {
+      p.vy = JUMP;
+      playSfx('jump');
+    } else if (p.wall) {
+      p.vy = JUMP;
+      p.vx = -p.wall * SPEED;
+      p.facing = -p.wall;
+      p.kick = 0.15;
+      p.jumpsLeft = 1;
+      playSfx('jump');
+    } else if (p.jumpsLeft > 0) {
+      p.vy = JUMP * 0.9;
+      p.jumpsLeft = 0;
+      p.doubleJumpTime = ANIMS['double-jump'].frames / ANIMS['double-jump'].fps;
+      playSfx('jump');
+    }
+  }
+  jumpPressed = false;
+
+  p.vy = Math.min(p.vy + GRAVITY * dt, p.wall ? WALL_SLIDE : MAX_FALL);
+  moveX(p.vx * dt);
+  moveY(p.vy * dt);
+  p.doubleJumpTime -= dt;
+
+  if (p.y + BODY.h >= H) {              // 화면 아래(구덩이)에 닿음
+    p.state = 'hit';
+    p.vx = p.vy = 0;
+    setAnim('hit');
+    return;
+  }
+
+  if (p.onGround) setAnim(p.vx ? 'run' : 'idle');
+  else if (p.wall) setAnim('wall-jump');
+  else if (p.doubleJumpTime > 0) setAnim('double-jump');
+  else setAnim(p.vy < 0 ? 'jump' : 'fall');
+
+  // 딸기 줍기: 딸기 가운데 12×12 와 몸이 겹치면 먹음
+  for (const b of berries) {
+    if (b.taken) continue;
+    if (p.x < b.x + 6 && p.x + BODY.w > b.x - 6 && p.y < b.y + 6 && p.y + BODY.h > b.y - 6) {
+      b.taken = true;
+      playSfx('coin');
+    }
+  }
+  score = berries.filter(b => b.taken).length;
+}
+
+// ===== 그리기 =====
+function frameIndex(name, t) {
+  const a = ANIMS[name];
+  const f = Math.floor(t * a.fps);
+  return a.loop ? f % a.frames : Math.min(f, a.frames - 1);
+}
+function drawFrame(img, frame, x, y, flip) {
+  x = Math.round(x);
+  y = Math.round(y);
+  ctx.save();
+  if (flip) { ctx.translate(x + FRAME, y); ctx.scale(-1, 1); }
+  else ctx.translate(x, y);
+  ctx.drawImage(img, frame * FRAME, 0, FRAME, FRAME, 0, 0, FRAME, FRAME);
+  ctx.restore();
+}
+function drawText(text, x, y, size, color = '#fff', align = 'left') {
+  ctx.font = `bold ${size}px "Malgun Gothic", sans-serif`;
+  ctx.textAlign = align;
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = '#1d1b2a';
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
+let bgPattern;
+function draw(time) {
+  const sec = time / 1000;
+  ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+  ctx.imageSmoothingEnabled = false;     // 픽셀 그림이 흐려지지 않게 (최근접 필터)
+
+  // 배경: 64×64 무늬를 깔고 천천히 아래로 흘림
+  const shift = (sec * 16) % 64;
+  ctx.save();
+  ctx.translate(0, shift - 64);
+  ctx.fillStyle = bgPattern;
+  ctx.fillRect(0, 0, W, H + 64);
+  ctx.restore();
+
+  ctx.drawImage(levelCanvas, 0, 0);
+
+  for (const b of berries) {
+    if (!b.taken) drawFrame(images.strawberry, frameIndex('strawberry', sec), b.x - FRAME / 2, b.y - FRAME / 2, false);
+  }
+
+  drawFrame(images[p.anim], frameIndex(p.anim, p.animTime), p.x - BODY.ox, p.y - BODY.oy, p.facing < 0);
+
+  // 글자는 2배 하지 않은 원래 크기로 그려야 또렷함
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  drawText(`딸기 ${score} / ${berries.length}`, 20, 40, 26);
+  soundErrors.forEach((src, i) => drawText(`소리를 못 불러왔어요: ${src}`, 20, 76 + i * 26, 18, '#ff8080'));
+
+  if (!started) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawText('딸기 모으기', canvas.width / 2, 230, 48, '#ffd166', 'center');
+    drawText('아무 키나 누르면 시작 (배경음악이 함께 나와요)', canvas.width / 2, 290, 22, '#fff', 'center');
+  } else if (score === berries.length) {
+    drawText('딸기를 다 모았어요!', canvas.width / 2, 230, 44, '#ffd166', 'center');
+    drawText('R 을 누르면 처음부터', canvas.width / 2, 280, 22, '#fff', 'center');
+  }
+}
+
+// ===== 시작 =====
+let last = 0;
+function loop(time) {
+  const dt = Math.min((time - last) / 1000, 1 / 30);
+  last = time;
+  if (started) update(dt);
+  else p.animTime += dt;                 // 시작 전에도 개구리는 숨 쉬듯 움직임
+  draw(time);
+  requestAnimationFrame(loop);
+}
+
+ctx.font = 'bold 24px "Malgun Gothic", sans-serif';
+ctx.fillStyle = '#fff';
+ctx.fillText('불러오는 중...', 20, 40);
+
+loadAllImages()
+  .then(() => {
+    bgPattern = ctx.createPattern(images.background, 'repeat');
+    buildLevelCanvas();
+    resetBerries();
+    resetPlayer();
+    requestAnimationFrame(t => { last = t; loop(t); });
+  })
+  .catch(src => {
+    ctx.fillStyle = '#ff8080';
+    ctx.fillText(`그림을 못 불러왔어요: ${src}`, 20, 80);
+  });
+</script>
+</body>
+</html>
