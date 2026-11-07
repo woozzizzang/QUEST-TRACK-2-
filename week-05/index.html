@@ -180,6 +180,7 @@ let coins = [];
 const KB = { w: 12, h: 24 };    // 기사 몸 크기 (부딪힘 판정용, 절반 크기 그림의 몸통에 맞춤)
 const SPEED = 90, GRAVITY = 900, JUMP = -320, MAX_FALL = 400;
 const START_X = 2 * TILE;
+const START_SAFE = 2;       // 시작(또는 R)하고 2초 동안은 슬라임이 공격하지 않음 (시작 직후 보호)
 let knight;
 
 // ===== 슬라임 =====
@@ -200,7 +201,7 @@ function resetGame() {
   state = 'play';
   playTime = 0;
   knight = { x: START_X, y: GROUND_TOP - KB.h, vx: 0, vy: 0, onGround: true, lives: 3, hurt: 0, knock: 0,
-             face: 1, anim: 'idle', animTime: 0 };
+             face: 1, anim: 'idle', animTime: 0, safe: START_SAFE };
   coins = COIN_SPOTS.map(([tx, ty]) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, taken: false }));
   slimes = SLIME_SETUP.map(s => ({
     ...s, y: GROUND_TOP, vy: 0, dir: -1,
@@ -293,7 +294,7 @@ function updateSlime(s, dt) {
     return;
   }
   const kx = knight.x + KB.w / 2;
-  if (s.charge && s.cooldown <= 0 && Math.abs(kx - s.x) < 50 && knight.y + KB.h > GROUND_TOP - 24) {
+  if (s.charge && s.cooldown <= 0 && knight.safe <= 0 && Math.abs(kx - s.x) < 50 && knight.y + KB.h > GROUND_TOP - 24) {
     s.dir = kx > s.x ? 1 : -1;
     setSlimeAnim(s, 'attack');
     return;
@@ -337,6 +338,7 @@ function update(dt) {
 
 function updatePlay(dt) {
   playTime += dt;
+  if (knight.safe > 0) knight.safe -= dt;
   updateKnight(dt);
 
   const kb = knightBox();
@@ -348,7 +350,7 @@ function updatePlay(dt) {
   }
   if (coins.every(c => c.taken)) { state = 'won'; return; }
 
-  if (knight.hurt <= 0) {
+  if (knight.hurt <= 0 && knight.safe <= 0) {
     for (const s of slimes) {
       if (!overlap(kb, slimeBox(s))) continue;
       knight.lives--;

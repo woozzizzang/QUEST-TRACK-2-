@@ -23,6 +23,20 @@ export default async ({ ev, down, up, tap, shot, sleep, waitUntil, log }) => {
   log('처음: 금화', await ev('coins.length'), '개, 하트', await ev('knight.lives'), ', 상태', await ev('state'));
   await shot('02-play');
 
+  // 시작 직후 보호: 2초 안에는 슬라임에 닿아도 하트가 줄지 않고, 빨강도 달려들지 않음
+  await ev('knight.x = slimes[0].x - 6; knight.y = GROUND_TOP - KB.h; true');
+  await sleep(300);
+  log('시작 직후 초록 슬라임에 닿음: 하트', await ev('knight.lives'), '/ 남은 보호(초)', (await ev('knight.safe')).toFixed(1));
+  await shot('02b-start-safe');
+  await ev('knight.x = slimes[3].x - 45; knight.y = GROUND_TOP - KB.h; true');
+  await sleep(400);
+  log('시작 직후 빨강 슬라임 옆: 빨강 동작', await ev('slimes[3].anim'), '/ 하트', await ev('knight.lives'));
+  await ev('knight.x = slimes[0].x - 6; knight.y = GROUND_TOP - KB.h; true');
+  await waitUntil('knight.safe <= 0', 3000); await sleep(100);
+  log('보호가 끝난 뒤 초록 슬라임에 닿음: 하트', await ev('knight.lives'), '/ 시작 후 시간', await ev('playTime.toFixed(1)'));
+  await tap('KeyR'); await sleep(100);
+  log('R 뒤 보호 다시 시작:', (await ev('knight.safe')) > 1.5);
+
   // 점프 높이
   const groundY = await ev('knight.y');
   await ev(`window.__minY = 1e9; (function r() { __minY = Math.min(__minY, knight.y); requestAnimationFrame(r); })(); true`);
@@ -89,7 +103,7 @@ export default async ({ ev, down, up, tap, shot, sleep, waitUntil, log }) => {
       '/ 시간', await ev('playTime.toFixed(1)'));
 
   // 하트를 다 잃으면
-  await ev('knight.lives = 1; knight.hurt = 0; knight.x = slimes[0].x - 6; knight.y = GROUND_TOP - KB.h; true');
+  await ev('knight.lives = 1; knight.hurt = 0; knight.safe = 0; knight.x = slimes[0].x - 6; knight.y = GROUND_TOP - KB.h; true');
   await sleep(300);
   log('마지막 하트 잃은 뒤 상태:', await ev('state'), '/ 슬라임 동작', await ev('slimes.map(s => s.anim).join(",")'));
   await sleep(1300);
