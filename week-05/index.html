@@ -203,9 +203,25 @@ let slimes = [];
 let state = 'play';         // play: 하는 중 / over: 하트를 다 잃음 / won: 금화를 다 모음
 let playTime = 0;
 
+// 최고 기록(스피드런): 금화를 다 모은 가장 빠른 시간을 이 브라우저에 저장해 둠
+// 창을 닫아도 남지만, 다른 브라우저나 다른 컴퓨터에서는 따로 기록됨
+const BEST_KEY = 'forest-coin-best-time';
+function loadBest() {
+  try {
+    const v = parseFloat(localStorage.getItem(BEST_KEY));
+    return v > 0 ? v : null;
+  } catch { return null; }              // 저장을 못 쓰는 브라우저면 기록 없이 진행
+}
+function saveBest(t) {
+  try { localStorage.setItem(BEST_KEY, String(t)); } catch {}
+}
+let bestTime = loadBest();  // null 이면 아직 기록 없음
+let newRecord = false;      // 이번 판이 새 기록인지
+
 function resetGame() {
   state = 'play';
   playTime = 0;
+  newRecord = false;
   knight = { x: START_X, y: GROUND_TOP - KB.h, vx: 0, vy: 0, onGround: true, lives: 3, hurt: 0, knock: 0,
              face: 1, anim: 'idle', animTime: 0, safe: START_SAFE, roll: 0, rollCool: 0 };
   coins = COIN_SPOTS.map(([tx, ty]) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, taken: false }));
@@ -371,7 +387,12 @@ function updatePlay(dt) {
       playSfx('coin');
     }
   }
-  if (coins.every(c => c.taken)) { state = 'won'; return; }
+  if (coins.every(c => c.taken)) {
+    state = 'won';
+    newRecord = bestTime === null || playTime < bestTime;
+    if (newRecord) { bestTime = playTime; saveBest(playTime); }
+    return;
+  }
 
   if (knight.hurt <= 0 && knight.safe <= 0 && knight.roll <= 0) {   // 구르는 동안은 맞지 않음
     for (const s of slimes) {
@@ -465,6 +486,7 @@ function draw(time) {
   drawText(`금화 ${got} / ${coins.length}`, 20, 40, 26, '#ffd23f');
   drawText('♥'.repeat(knight.lives) + '♡'.repeat(3 - knight.lives), 20, 76, 26, '#ff6b6b');
   drawText(`${playTime.toFixed(1)}초`, canvas.width - 20, 40, 26, '#fff', 'right');
+  drawText(`최고 ${bestTime === null ? '-' : bestTime.toFixed(1) + '초'}`, canvas.width - 20, 70, 18, '#ffd23f', 'right');
   soundErrors.forEach((src, i) => drawText(`소리를 못 불러왔어요: ${src}`, 20, 112 + i * 26, 18, '#ff8080'));
 
   if (!started) {
@@ -476,6 +498,8 @@ function draw(time) {
   } else if (state === 'won') {
     drawText('금화를 다 모았어요!', canvas.width / 2, 230, 44, '#ffd23f', 'center');
     drawText(`걸린 시간 ${playTime.toFixed(1)}초 · R 을 누르면 처음부터`, canvas.width / 2, 280, 22, '#fff', 'center');
+    drawText(newRecord ? '새 최고 기록!' : `최고 기록 ${bestTime.toFixed(1)}초`, canvas.width / 2, 318, 22,
+             newRecord ? '#ffd23f' : '#ccc', 'center');
   } else if (state === 'over') {
     drawText('하트를 다 잃었어요', canvas.width / 2, 230, 44, '#ff6b6b', 'center');
     drawText(`모은 금화 ${got}개 · R 을 누르면 처음부터`, canvas.width / 2, 280, 22, '#fff', 'center');

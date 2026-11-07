@@ -13,6 +13,14 @@ export default async ({ ev, tap, sleep, log }) => {
     const pool = [JSON.stringify(knight)];    // 지금까지 서 본 자리들
     const seen = new Set();
     const reached = new Set();
+    const info = coins.map(() => ({ count: 0, first: null, from: {} }));   // 금화마다: 닿은 횟수, 처음 닿은 시험, 어디서 닿았나
+    const where = () => {
+      if (!knight.onGround) return '점프 중';
+      const by = knight.y + KB.h;
+      if (Math.abs(by - GROUND_TOP) < 0.5) return '땅';
+      const i = PLATFORMS.findIndex(p => Math.abs(by - p.y) < 0.5 && knight.x + KB.w > p.x && knight.x < p.x + p.w);
+      return i < 0 ? '땅' : '발판' + (i + 1);
+    };
     for (let trial = 0; trial < 5000; trial++) {
       knight = JSON.parse(pool[Math.floor(rnd() * pool.length)]);
       coins.forEach(c => c.taken = false);
@@ -23,8 +31,17 @@ export default async ({ ev, tap, sleep, log }) => {
         keys.ArrowLeft = dir < 0;
         keys.ArrowRight = dir > 0;
         if (rnd() < 0.06) jumpBuffer = JUMP_BUFFER;
+        const before = coins.map(c => c.taken);
         update(1 / 60);
         state = 'play';
+        coins.forEach((c, i) => {
+          if (c.taken && !before[i]) {
+            const w = where();
+            info[i].count++;
+            if (info[i].first === null) info[i].first = trial + 1;
+            info[i].from[w] = (info[i].from[w] || 0) + 1;
+          }
+        });
         if (knight.onGround) {
           const k = Math.round(knight.x / 8) + ',' + Math.round(knight.y);
           if (!seen.has(k)) { seen.add(k); pool.push(JSON.stringify(knight)); }
@@ -34,8 +51,15 @@ export default async ({ ev, tap, sleep, log }) => {
     }
     keys.ArrowLeft = keys.ArrowRight = false;
     const missed = coins.map((c, i) => reached.has(i) ? null : COIN_SPOTS[i].join(',')).filter(Boolean);
+    const lines = coins.map((c, i) => {
+      const f = info[i];
+      const top = Object.entries(f.from).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join(', ');
+      return '  ' + String(i + 1).padStart(2) + '번 (' + COIN_SPOTS[i].join(',') + ') ' +
+        (f.count ? '닿음 · ' + f.count + '번 · 처음 ' + f.first + '번째 시험 · 닿은 곳: ' + top : '못 닿음');
+    });
     resetGame();
-    return '금화 ' + coins.length + '개 중 닿은 금화 ' + reached.size + '개'
+    return '금화 ' + coins.length + '개 중 닿은 금화 ' + reached.size + '개 (5000번 시험, 서 본 자리 ' + pool.length + '곳)\\n'
+      + lines.join('\\n')
       + (missed.length ? '\\n못 닿은 금화(가로칸,세로칸): ' + missed.join('  ') : '');
   })()`);
   log(result);
