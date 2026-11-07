@@ -31,8 +31,9 @@ export default async ({ ev, down, up, tap, shot, sleep, waitUntil, log }) => {
   await ev('knight.x = slimes[3].x - 45; knight.y = GROUND_TOP - KB.h; true');
   await sleep(400);
   log('시작 직후 빨강 슬라임 옆: 빨강 동작', await ev('slimes[3].anim'), '/ 하트', await ev('knight.lives'));
-  await ev('knight.x = slimes[0].x - 6; knight.y = GROUND_TOP - KB.h; true');
-  await waitUntil('knight.safe <= 0', 3000); await sleep(100);
+  await waitUntil('knight.safe <= 0', 3000);
+  await ev('knight.x = slimes[0].x - 6; knight.y = GROUND_TOP - KB.h; true');   // 보호가 끝난 뒤 슬라임 위에 올려 둠
+  await sleep(100);
   log('보호가 끝난 뒤 초록 슬라임에 닿음: 하트', await ev('knight.lives'), '/ 시작 후 시간', await ev('playTime.toFixed(1)'));
   await tap('KeyR'); await sleep(100);
   log('R 뒤 보호 다시 시작:', (await ev('knight.safe')) > 1.5);
@@ -82,6 +83,27 @@ export default async ({ ev, down, up, tap, shot, sleep, waitUntil, log }) => {
   await up('ArrowLeft'); await sleep(200);
   log('멈춘 뒤 동작:', await ev('knight.anim'), '/ 보는 방향(왼쪽 그대로):', await ev('knight.face'));
   await shot('04c-left-idle');
+
+  // 피하기 기술: Shift 로 구르면 슬라임을 지나가도 하트가 줄지 않음
+  await ev(`knight.hurt = 0; knight.safe = 0; knight.face = 1; knight.vx = 0;
+    knight.x = slimes[0].x - 5 - KB.w - 10; knight.y = GROUND_TOP - KB.h; knight.rollCool = 0; true`);   // 슬라임 바로 앞(10px)
+  const livesBefore = await ev('knight.lives');
+  const rollStartX = await ev('knight.x');
+  await tap('ShiftLeft'); await sleep(150);
+  log('구르기 시작: 동작', await ev('knight.anim'), '/ 남은 구르기(초)', (await ev('knight.roll')).toFixed(2));
+  await shot('04d-roll');
+  await waitUntil('knight.roll <= 0', 1000); await sleep(50);
+  log('굴러서 슬라임 지나감: 하트', livesBefore, '→', await ev('knight.lives'),
+      '/ 굴러간 거리(px)', Math.round(await ev('knight.x') - rollStartX),
+      '/ 슬라임보다 오른쪽', await ev('knight.x > slimes[0].x + 5'), '/ 끝난 뒤 동작', await ev('knight.anim'));
+  await tap('ShiftLeft'); await sleep(50);
+  log('끝나자마자 다시 Shift: 바로 다시 구름?', (await ev('knight.roll')) > 0 ? '구름(잘못)' : '안 구름(기다려야 함)');
+  await sleep(700);
+  await tap('ShiftLeft'); await sleep(50);
+  log('기다린 뒤 다시 Shift: 구름?', (await ev('knight.roll')) > 0);
+  await sleep(500);
+  await ev('knight.x = 100; knight.y = GROUND_TOP - KB.h; knight.vx = 0; true');
+  await sleep(100);
 
   // 발판에 올라서기: 첫 발판 위에서 떨어뜨려 봄
   await ev('knight.x = PLATFORMS[0].x + 10; knight.y = PLATFORMS[0].y - 40; knight.vy = 0; knight.hurt = 0; true');

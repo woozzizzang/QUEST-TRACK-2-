@@ -27,7 +27,7 @@
 </head>
 <body>
 <canvas id="game" width="960" height="540"></canvas>
-<p>← → 이동 · 스페이스 점프 · 슬라임을 피해서 금화를 모두 모으기 · R 처음부터</p>
+<p>← → 이동 · 스페이스 점프 · Shift 구르기(구르는 동안 안 맞음) · 슬라임을 피해서 금화를 모두 모으기 · R 처음부터</p>
 <p class="credits">
   초록·파랑·노랑·빨강 슬라임 그림(4개 모두): Animated Slime by Calciumtrice (CC-BY 3.0)
   <a href="https://opengameart.org/content/animated-slime">https://opengameart.org/content/animated-slime</a>
@@ -62,6 +62,8 @@ const HERO_ANIMS = {
   attack2: { frames: 7,  fps: 14, loop: false, file: 'hero-knight_attack_2.png' },
   hit:     { frames: 4,  fps: 12, loop: false, file: 'hero-knight_hit.png' },
   death:   { frames: 11, fps: 10, loop: false, file: 'hero-knight_death.png' },
+  // 구르기 그림은 에셋에 없어서, 달리기 그림을 빠르게 돌리면서 한 바퀴 회전시켜 그림
+  roll:    { frames: 8,  fps: 20, loop: true,  file: 'hero-knight_run.png' },
 };
 const HERO_FW = 134, HERO_FH = 83;
 const HERO_FOOT_X = 47, HERO_FOOT_Y = 80;   // 한 프레임 안에서 기사 발밑 가운데 자리
@@ -181,6 +183,10 @@ const KB = { w: 12, h: 24 };    // 기사 몸 크기 (부딪힘 판정용, 절�
 const SPEED = 90, GRAVITY = 900, JUMP = -320, MAX_FALL = 400;
 const START_X = 2 * TILE;
 const START_SAFE = 2;       // 시작(또는 R)하고 2초 동안은 슬라임이 공격하지 않음 (시작 직후 보호)
+// 피하기 기술: Shift 를 누르면 보는 쪽으로 구름. 구르는 동안은 슬라임에 닿아도 맞지 않음
+const ROLL_TIME = 0.4;      // 한 번 구르는 시간(초)
+const ROLL_SPEED = 160;     // 구르는 빠르기 (걷기 90 보다 빠름)
+const ROLL_COOLDOWN = 0.6;  // 구르기가 끝나고 다시 구를 수 있을 때까지 기다리는 시간(초)
 let knight;
 
 // ===== 슬라임 =====
@@ -201,7 +207,7 @@ function resetGame() {
   state = 'play';
   playTime = 0;
   knight = { x: START_X, y: GROUND_TOP - KB.h, vx: 0, vy: 0, onGround: true, lives: 3, hurt: 0, knock: 0,
-             face: 1, anim: 'idle', animTime: 0, safe: START_SAFE };
+             face: 1, anim: 'idle', animTime: 0, safe: START_SAFE, roll: 0, rollCool: 0 };
   coins = COIN_SPOTS.map(([tx, ty]) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, taken: false }));
   slimes = SLIME_SETUP.map(s => ({
     ...s, y: GROUND_TOP, vy: 0, dir: -1,
@@ -214,6 +220,7 @@ const keys = {};
 // 입력 버퍼: 땅에 닿기 조금 전에 누른 점프도 버리지 않고, 닿는 순간 뛰게 해 줌
 const JUMP_BUFFER = 0.15;   // 0.15초 안에 땅에 닿으면 받아 줌
 let jumpBuffer = 0;         // 남은 시간 (0 이면 기다리는 점프 없음)
+let rollPressed = false;
 let started = false;
 let ready = false;
 addEventListener('keydown', e => {
@@ -226,6 +233,7 @@ addEventListener('keydown', e => {
   }
   keys[e.code] = true;
   if (e.code === 'Space' && !e.repeat) jumpBuffer = JUMP_BUFFER;
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) rollPressed = true;
   if (e.code === 'KeyR') resetGame();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -238,7 +246,17 @@ const slimeBox = s => ({ x: s.x - 5, y: s.y - 9, w: 10, h: 9 });    // 몸(12×1
 function updateKnight(dt) {
   const k = knight;
   if (k.hurt > 0) k.hurt -= dt;
-  if (k.knock > 0) {
+  if (k.rollCool > 0) k.rollCool -= dt;
+  // 구르기 시작: 땅 위에서, 밀려나는 중이 아닐 때만
+  if (rollPressed && state === 'play' && k.onGround && k.roll <= 0 && k.rollCool <= 0 && k.knock <= 0) {
+    k.roll = ROLL_TIME;
+    k.rollCool = ROLL_TIME + ROLL_COOLDOWN;
+  }
+  rollPressed = false;
+  if (k.roll > 0) {
+    k.roll -= dt;
+    k.vx = k.face * ROLL_SPEED;         // 구르는 동안은 보는 쪽으로 쭉 굴러감
+  } else if (k.knock > 0) {
     k.knock -= dt;                      // 부딪힌 직후 잠깐은 뒤로 밀려남
   } else if (state === 'play') {
     k.vx = ((keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0)) * SPEED;
@@ -246,7 +264,7 @@ function updateKnight(dt) {
   } else {
     k.vx = 0;                           // 쓰러진 뒤에는 움직이지 않음
   }
-  if (jumpBuffer > 0 && k.onGround && state === 'play') {
+  if (jumpBuffer > 0 && k.onGround && state === 'play' && k.roll <= 0) {
     k.vy = JUMP;
     playSfx('jump');
     jumpBuffer = 0;
@@ -328,6 +346,7 @@ function updateKnightAnim(dt) {
   k.animTime += dt;
   const hitPlaying = k.anim === 'hit' && k.animTime < HERO_ANIMS.hit.frames / HERO_ANIMS.hit.fps;
   if (state === 'over') setKnightAnim('death');
+  else if (k.roll > 0 && state === 'play') setKnightAnim('roll');
   else if (k.knock > 0 || hitPlaying) setKnightAnim('hit');
   else if (!k.onGround) setKnightAnim(k.vy < 0 ? 'jump' : 'fall');
   else setKnightAnim(k.vx !== 0 && state === 'play' ? 'run' : 'idle');
@@ -354,7 +373,7 @@ function updatePlay(dt) {
   }
   if (coins.every(c => c.taken)) { state = 'won'; return; }
 
-  if (knight.hurt <= 0 && knight.safe <= 0) {
+  if (knight.hurt <= 0 && knight.safe <= 0 && knight.roll <= 0) {   // 구르는 동안은 맞지 않음
     for (const s of slimes) {
       if (!overlap(kb, slimeBox(s))) continue;
       knight.lives--;
@@ -427,6 +446,12 @@ function draw(time) {
     const f = animFrame(HERO_ANIMS[knight.anim], knight.animTime);
     ctx.save();
     ctx.translate(Math.round(knight.x + KB.w / 2), Math.round(knight.y + KB.h));
+    if (knight.anim === 'roll') {       // 구르기: 몸 가운데를 중심으로 앞으로 한 바퀴
+      const turn = (1 - Math.max(0, knight.roll) / ROLL_TIME) * Math.PI * 2 * knight.face;
+      ctx.translate(0, -KB.h / 2);
+      ctx.rotate(turn);
+      ctx.translate(0, KB.h / 2);
+    }
     ctx.scale(knight.face * HERO_SIZE, HERO_SIZE);
     ctx.drawImage(images[`hero-${knight.anim}`], f * HERO_FW, 0, HERO_FW, HERO_FH,
                   -HERO_FOOT_X, -HERO_FOOT_Y, HERO_FW, HERO_FH);

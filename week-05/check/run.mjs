@@ -62,7 +62,7 @@ const ev = async expr => {
 };
 const KEYS = {
   ArrowRight: ['ArrowRight', 39], ArrowLeft: ['ArrowLeft', 37], ArrowUp: ['ArrowUp', 38], ArrowDown: ['ArrowDown', 40],
-  Space: [' ', 32], Enter: ['Enter', 13], KeyR: ['r', 82],
+  Space: [' ', 32], Enter: ['Enter', 13], KeyR: ['r', 82], ShiftLeft: ['Shift', 16],
 };
 const keyEvent = (type, code) => send('Input.dispatchKeyEvent', { type, code, key: KEYS[code][0], windowsVirtualKeyCode: KEYS[code][1] });
 const down = code => keyEvent('keyDown', code);
