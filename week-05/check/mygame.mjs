@@ -46,6 +46,16 @@ export default async ({ ev, down, up, tap, shot, sleep, waitUntil, log }) => {
   log('점프 높이(px):', Math.round(groundY - await ev('__minY')), '/ 착지:', await ev('knight.onGround'),
       '/ 점프 중 기사 동작:', jumpAnim, '/ 착지 후 동작:', await ev('knight.anim'));
 
+  // 입력 버퍼: 땅에 닿기 조금 전(약 0.1초)에 누른 점프는 받아 주고, 너무 일찍(약 0.4초 전) 누른 건 받지 않음
+  await ev(`window.__jumped = false; (function r() { if (knight.vy < -250) __jumped = true; requestAnimationFrame(r); })(); true`);
+  await ev('knight.y = GROUND_TOP - KB.h - 6; knight.vy = 0; knight.onGround = false; true');   // 6px 위에서 떨어뜨림
+  await tap('Space'); await sleep(500);
+  const early = await ev('__jumped');
+  await ev('__jumped = false; knight.y = GROUND_TOP - KB.h - 60; knight.vy = 0; knight.onGround = false; true');   // 60px 위
+  await tap('Space'); await sleep(700);
+  log('입력 버퍼: 닿기 직전에 누른 점프', early ? '받아 줌' : '버려짐',
+      '/ 너무 일찍 누른 점프', (await ev('__jumped')) ? '받아 줌(잘못)' : '버려짐', '/ 착지:', await ev('knight.onGround'));
+
   // 첫 금화 줍기 (오른쪽으로 걸어가면 땅 위 금화가 있음)
   await down('ArrowRight');
   await sleep(150);

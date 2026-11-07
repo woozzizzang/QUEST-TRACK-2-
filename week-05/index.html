@@ -211,7 +211,9 @@ function resetGame() {
 
 // ===== 키보드 =====
 const keys = {};
-let jumpPressed = false;
+// 입력 버퍼: 땅에 닿기 조금 전에 누른 점프도 버리지 않고, 닿는 순간 뛰게 해 줌
+const JUMP_BUFFER = 0.15;   // 0.15초 안에 땅에 닿으면 받아 줌
+let jumpBuffer = 0;         // 남은 시간 (0 이면 기다리는 점프 없음)
 let started = false;
 let ready = false;
 addEventListener('keydown', e => {
@@ -223,7 +225,7 @@ addEventListener('keydown', e => {
     return;
   }
   keys[e.code] = true;
-  if (e.code === 'Space' && !e.repeat) jumpPressed = true;
+  if (e.code === 'Space' && !e.repeat) jumpBuffer = JUMP_BUFFER;
   if (e.code === 'KeyR') resetGame();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -244,11 +246,13 @@ function updateKnight(dt) {
   } else {
     k.vx = 0;                           // 쓰러진 뒤에는 움직이지 않음
   }
-  if (jumpPressed && k.onGround && state === 'play') {
+  if (jumpBuffer > 0 && k.onGround && state === 'play') {
     k.vy = JUMP;
     playSfx('jump');
+    jumpBuffer = 0;
+  } else if (jumpBuffer > 0) {
+    jumpBuffer -= dt;                   // 공중에서 누른 점프는 잠깐만 기다려 줌
   }
-  jumpPressed = false;
 
   k.vy = Math.min(k.vy + GRAVITY * dt, MAX_FALL);
   k.x = Math.max(0, Math.min(WORLD_W - KB.w, k.x + k.vx * dt));

@@ -22,7 +22,7 @@ export default async ({ ev, tap, sleep, log }) => {
         if (hold-- <= 0) { dir = [-1, 0, 1, 1][Math.floor(rnd() * 4)]; hold = 5 + rnd() * 40; }
         keys.ArrowLeft = dir < 0;
         keys.ArrowRight = dir > 0;
-        if (rnd() < 0.06) jumpPressed = true;
+        if (rnd() < 0.06) jumpBuffer = JUMP_BUFFER;
         update(1 / 60);
         state = 'play';
         if (knight.onGround) {
