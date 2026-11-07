@@ -29,7 +29,7 @@
 <canvas id="game" width="960" height="540"></canvas>
 <p>← → 이동 · 스페이스 점프 · 슬라임을 피해서 금화를 모두 모으기 · R 처음부터</p>
 <p class="credits">
-  슬라임 그림: Animated Slime by Calciumtrice (CC-BY 3.0)
+  초록·파랑·노랑·빨강 슬라임 그림(4개 모두): Animated Slime by Calciumtrice (CC-BY 3.0)
   <a href="https://opengameart.org/content/animated-slime">https://opengameart.org/content/animated-slime</a>
 </p>
 <script>
@@ -52,16 +52,33 @@ const SLIME_ANIMS = {       // 슬라임 4색 모두 같음 (drop.json 값). 32�
 };
 const SLIME_FRAME = 32;
 
+// 영웅 기사 (drop.json 값). 134×83 프레임이 가로 한 줄, 그림은 오른쪽을 보고 있음
+const HERO_ANIMS = {
+  idle:    { frames: 11, fps: 10, loop: true,  file: 'hero-knight_idle.png' },
+  run:     { frames: 8,  fps: 14, loop: true,  file: 'hero-knight_run.png' },
+  jump:    { frames: 3,  fps: 10, loop: true,  file: 'hero-knight_jump.png' },
+  fall:    { frames: 3,  fps: 10, loop: true,  file: 'hero-knight_fall.png' },
+  attack:  { frames: 7,  fps: 14, loop: false, file: 'hero-knight_attack.png' },
+  attack2: { frames: 7,  fps: 14, loop: false, file: 'hero-knight_attack_2.png' },
+  hit:     { frames: 4,  fps: 12, loop: false, file: 'hero-knight_hit.png' },
+  death:   { frames: 11, fps: 10, loop: false, file: 'hero-knight_death.png' },
+};
+const HERO_FW = 134, HERO_FH = 83;
+const HERO_FOOT_X = 47, HERO_FOOT_Y = 80;   // 한 프레임 안에서 기사 발밑 가운데 자리
+const HERO_SIZE = 0.5;      // 그림이 숲에 비해 커서 절반 크기로 그림 (1 로 하면 원래 크기)
+
 const IMAGE_FILES = {
   'bg-back':   'assets/images/forest-parallax-back_back.png',     // 160×272, 천천히 (0.25)
   'bg-middle': 'assets/images/forest-parallax-back_middle.png',   // 384×272, 조금 빠르게 (0.7)
   'ground':    'assets/images/forest-ground-tiles.png',           // 176×96, 한 칸 16×16
-  'knight':    'assets/images/knight.png',                        // 16×16 한 장
 };
 for (const color of SLIME_COLORS) {
   for (const anim of Object.keys(SLIME_ANIMS)) {
     IMAGE_FILES[`${color}-${anim}`] = `assets/images/${color}-slime_${anim}.png`;
   }
+}
+for (const [anim, a] of Object.entries(HERO_ANIMS)) {
+  IMAGE_FILES[`hero-${anim}`] = `assets/images/${a.file}`;
 }
 const PARALLAX = [
   { key: 'bg-back',   w: 160, speed: 0.25 },
@@ -160,7 +177,7 @@ const COIN_SPOTS = [
 let coins = [];
 
 // ===== 기사 =====
-const KB = { ox: 2, oy: 1, w: 12, h: 15 };    // 16×16 그림 안에서 몸이 있는 부분 (부딪힘 판정용)
+const KB = { w: 12, h: 24 };    // 기사 몸 크기 (부딪힘 판정용, 절반 크기 그림의 몸통에 맞춤)
 const SPEED = 90, GRAVITY = 900, JUMP = -320, MAX_FALL = 400;
 const START_X = 2 * TILE;
 let knight;
@@ -182,7 +199,8 @@ let playTime = 0;
 function resetGame() {
   state = 'play';
   playTime = 0;
-  knight = { x: START_X, y: GROUND_TOP - KB.h, vx: 0, vy: 0, onGround: true, lives: 3, hurt: 0, knock: 0 };
+  knight = { x: START_X, y: GROUND_TOP - KB.h, vx: 0, vy: 0, onGround: true, lives: 3, hurt: 0, knock: 0,
+             face: 1, anim: 'idle', animTime: 0 };
   coins = COIN_SPOTS.map(([tx, ty]) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, taken: false }));
   slimes = SLIME_SETUP.map(s => ({
     ...s, y: GROUND_TOP, vy: 0, dir: -1,
@@ -219,10 +237,13 @@ function updateKnight(dt) {
   if (k.hurt > 0) k.hurt -= dt;
   if (k.knock > 0) {
     k.knock -= dt;                      // 부딪힌 직후 잠깐은 뒤로 밀려남
-  } else {
+  } else if (state === 'play') {
     k.vx = ((keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0)) * SPEED;
+    if (k.vx !== 0) k.face = k.vx > 0 ? 1 : -1;
+  } else {
+    k.vx = 0;                           // 쓰러진 뒤에는 움직이지 않음
   }
-  if (jumpPressed && k.onGround) {
+  if (jumpPressed && k.onGround && state === 'play') {
     k.vy = JUMP;
     playSfx('jump');
   }
@@ -293,9 +314,28 @@ function updateSlime(s, dt) {
   }
 }
 
+// 기사 동작 고르기: 쓰러짐 > 피격 > 점프/떨어짐 > 달리기/대기
+function setKnightAnim(name) {
+  if (knight.anim !== name) { knight.anim = name; knight.animTime = 0; }
+}
+function updateKnightAnim(dt) {
+  const k = knight;
+  k.animTime += dt;
+  const hitPlaying = k.anim === 'hit' && k.animTime < HERO_ANIMS.hit.frames / HERO_ANIMS.hit.fps;
+  if (state === 'over') setKnightAnim('death');
+  else if (k.knock > 0 || hitPlaying) setKnightAnim('hit');
+  else if (!k.onGround) setKnightAnim(k.vy < 0 ? 'jump' : 'fall');
+  else setKnightAnim(k.vx !== 0 && state === 'play' ? 'run' : 'idle');
+}
+
 function update(dt) {
   for (const s of slimes) updateSlime(s, dt);
-  if (state !== 'play') return;
+  if (state === 'play') updatePlay(dt);
+  else if (state === 'over') updateKnight(dt);   // 쓰러질 때 공중이면 땅까지 떨어짐
+  updateKnightAnim(dt);
+}
+
+function updatePlay(dt) {
   playTime += dt;
   updateKnight(dt);
 
@@ -317,18 +357,18 @@ function update(dt) {
       knight.vx = (knight.x + KB.w / 2 < s.x ? -1 : 1) * 130;
       knight.vy = -180;
       s.waveTime = 1;
-      if (knight.lives <= 0) state = 'over';
+      if (knight.lives <= 0) { state = 'over'; knight.hurt = 0; }   // 쓰러지는 모습은 깜빡이지 않게
       break;
     }
   }
 }
 
 // ===== 그리기 =====
-function slimeFrame(s) {
-  const a = SLIME_ANIMS[s.anim];
-  const f = Math.floor(s.animTime * a.fps);
-  return a.loop ? f % a.frames : Math.min(f, a.frames - 1);
+function animFrame(a, t) {
+  const f = Math.floor(t * a.fps);
+  return a.loop ? f % a.frames : Math.min(f, a.frames - 1);   // 한 번만 하는 동작은 마지막 장면에서 멈춤
 }
+const slimeFrame = s => animFrame(SLIME_ANIMS[s.anim], s.animTime);
 function drawText(text, x, y, size, color = '#fff', align = 'left') {
   ctx.font = `bold ${size}px "Malgun Gothic", sans-serif`;
   ctx.textAlign = align;
@@ -376,9 +416,15 @@ function draw(time) {
     ctx.restore();
   }
 
-  // 기사: 부딪힌 뒤에는 깜빡임
+  // 기사: 발밑 가운데를 몸 아래에 맞춰 그림. 왼쪽으로 갈 때 뒤집음. 부딪힌 뒤에는 깜빡임
   if (!(knight.hurt > 0 && Math.floor(knight.hurt * 10) % 2 === 0)) {
-    ctx.drawImage(images.knight, Math.round(knight.x - KB.ox), Math.round(knight.y - KB.oy));
+    const f = animFrame(HERO_ANIMS[knight.anim], knight.animTime);
+    ctx.save();
+    ctx.translate(Math.round(knight.x + KB.w / 2), Math.round(knight.y + KB.h));
+    ctx.scale(knight.face * HERO_SIZE, HERO_SIZE);
+    ctx.drawImage(images[`hero-${knight.anim}`], f * HERO_FW, 0, HERO_FW, HERO_FH,
+                  -HERO_FOOT_X, -HERO_FOOT_Y, HERO_FW, HERO_FH);
+    ctx.restore();
   }
   ctx.restore();
 
@@ -411,7 +457,10 @@ function loop(time) {
   const dt = Math.min((time - last) / 1000, 1 / 30);
   last = time;
   if (started) update(dt);
-  else for (const s of slimes) s.animTime += dt;   // 시작 전에도 슬라임은 꿈틀거림
+  else {                                           // 시작 전에도 슬라임과 기사는 꿈틀거림
+    for (const s of slimes) s.animTime += dt;
+    knight.animTime += dt;
+  }
   draw(time);
   requestAnimationFrame(loop);
 }
