@@ -1,10 +1,10 @@
-// 게임 확인 도구
+// 확인 도구 (week-06: 게임 말고 일반 웹페이지도 확인. canvas 가 없으면 화면 전체를 찍음)
 // 게임을 화면 없는 Edge 로 열고(두 번 눌러 열 때와 같은 file:// 방식), 시나리오대로 키를 대신 누르며
 // 게임 상태를 읽고 사진을 찍는다. 새로 설치할 것 없이 Node.js 와 컴퓨터에 있는 Edge 만 쓴다.
 //
 // 쓰는 법 (QUEST-TRACK-2- 폴더에서):
-//   node week-05/check/run.mjs week-05/index.html week-05/check/mygame.mjs
-// 사진은 week-05/check/shots/<시나리오 이름>/ 에 저장된다. (커밋하지 않음)
+//   node week-06/check/run.mjs week-06/index.html week-06/check/weather.mjs
+// 사진은 week-06/check/shots/<시나리오 이름>/ 에 저장된다. (커밋하지 않음)
 import { spawn } from 'node:child_process';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, basename, dirname } from 'node:path';
@@ -13,7 +13,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const [gameArg, scenarioArg] = process.argv.slice(2);
 if (!gameArg || !scenarioArg) {
-  console.log('쓰는 법: node week-05/check/run.mjs <게임 index.html> <시나리오 .mjs>');
+  console.log('쓰는 법: node week-06/check/run.mjs <게임 index.html> <시나리오 .mjs>');
   process.exit(1);
 }
 const gamePath = resolve(gameArg);
@@ -41,8 +41,11 @@ await new Promise(r => ws.onopen = r);
 let id = 0;
 const waiting = new Map();
 const browserLogs = [];
+const listeners = []; // 시나리오가 브라우저 소식(예: Fetch.requestPaused)을 받을 때 씀
+const on = (method, fn) => listeners.push([method, fn]);
 ws.onmessage = m => {
   const d = JSON.parse(m.data);
+  for (const [method, fn] of listeners) if (d.method === method) fn(d.params);
   if (d.id && waiting.has(d.id)) { waiting.get(d.id)(d); waiting.delete(d.id); }
   if (d.method === 'Runtime.exceptionThrown') browserLogs.push('오류 ' + d.params.exceptionDetails.exception?.description);
   if (d.method === 'Runtime.consoleAPICalled') browserLogs.push('console ' + d.params.args.map(a => a.value).join(' '));
@@ -94,7 +97,7 @@ await sleep(1500);
 
 try {
   const scenario = await import(pathToFileURL(scenarioPath).href);
-  await scenario.default({ ev, down, up, tap, shot, sleep, waitUntil, log });
+  await scenario.default({ ev, down, up, tap, shot, sleep, waitUntil, log, send, on });
 } catch (e) {
   console.log('시나리오 실행 중 문제:', e.message);
 }
