@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 바탕: 하늘색. 둘레까지 꽉 채워서 폰이 동그랗게 잘라도 괜찮음 -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f8ff7"/>
+      <stop offset="1" stop-color="#2f6fdf"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <!-- 해 (가운데 안전 구역 안에 그림) -->
+  <g fill="#ffd34d">
+    <circle cx="214" cy="214" r="62"/>
+    <g stroke="#ffd34d" stroke-width="16" stroke-linecap="round">
+      <line x1="214" y1="122" x2="214" y2="100"/>
+      <line x1="214" y1="306" x2="214" y2="328"/>
+      <line x1="122" y1="214" x2="100" y2="214"/>
+      <line x1="149" y1="149" x2="133" y2="133"/>
+      <line x1="279" y1="149" x2="295" y2="133"/>
+      <line x1="149" y1="279" x2="133" y2="295"/>
+    </g>
+  </g>
+  <!-- 구름 -->
+  <g fill="#ffffff">
+    <circle cx="250" cy="300" r="50"/>
+    <circle cx="315" cy="270" r="66"/>
+    <circle cx="372" cy="310" r="42"/>
+    <rect x="200" y="300" width="214" height="52" rx="26"/>
+  </g>
+</svg>

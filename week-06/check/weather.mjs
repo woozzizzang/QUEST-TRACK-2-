@@ -63,7 +63,8 @@ export default async function ({ ev, shot, sleep, waitUntil, log, send, on }) {
   // 붙잡아 둔 요청을 끊긴 것으로 처리
   for (const requestId of held) await send('Fetch.failRequest', { requestId, errorReason: 'InternetDisconnected' });
 
-  // 3. 실패한 경우들
+  // 3. 실패한 경우들 (저장된 날씨가 없을 때의 화면을 보려고 먼저 지움. 저장된 날씨는 pwa.mjs 에서 확인)
+  await ev(`localStorage.clear()`);
   for (const [m, label] of [['fail', '연결끊김'], ['server500', '서버오류'], ['baddata', '이상한답']]) {
     mode = m;
     await reload();

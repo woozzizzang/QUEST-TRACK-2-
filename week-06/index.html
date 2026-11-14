@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>우리 동네 날씨</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#2f6fdf">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="동네 날씨">
 <style>
   :root {
     --bg: #eef4fb;
@@ -81,6 +87,16 @@
     color: #fff;
     cursor: pointer;
   }
+  .offline {
+    margin: 16px 0 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--error);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .offline button { margin-top: 8px; padding: 8px 18px; font-size: 14px; }
   .source { margin-top: 24px; font-size: 12px; color: var(--sub); }
   .source a { color: inherit; }
   [hidden] { display: none !important; }
@@ -106,6 +122,11 @@
 
   <!-- 받아 왔을 때 -->
   <section id="weather" hidden>
+    <!-- 새 정보를 못 받아 와서 저장해 둔 정보를 보여 줄 때만 보임 -->
+    <div class="offline" id="offline" hidden>
+      <div id="offlineText"></div>
+      <button id="retry2" type="button">다시 불러오기</button>
+    </div>
     <div class="icon" id="icon" aria-hidden="true"></div>
     <div class="temp" id="temp"></div>
     <div class="desc" id="desc"></div>
@@ -149,59 +170,24 @@
   };
 
   const $ = id => document.getElementById(id);
-  window.appState = 'loading'; // 확인 도구가 읽는 값: loading / ok / error
+  const SAVE_KEY = 'week06-last-weather'; // 마지막으로 받은 날씨를 이 이름으로 저장
+  window.appState = 'loading'; // 확인 도구가 읽는 값: loading / ok / saved / error
 
   function show(which) {
     for (const s of ['loading', 'error', 'weather']) $(s).hidden = s !== which;
     window.appState = which === 'weather' ? 'ok' : which;
   }
 
-  function showError(reason) {
-    $('reason').textContent = reason;
-    $('updated').textContent = '';
-    show('error');
-  }
-
   const round = n => Math.round(n) + '°';
 
-  async function loadWeather() {
-    show('loading');
-    $('updated').textContent = '';
+  // 받아 온 날씨가 쓸 수 있는 모양인지 봄
+  const isGood = d => d && d.current && typeof d.current.temperature_2m === 'number'
+    && d.daily && Array.isArray(d.daily.temperature_2m_max) && Array.isArray(d.daily.temperature_2m_min);
 
-    if (!navigator.onLine) {
-      showError('인터넷에 연결되어 있지 않아요. 연결을 확인하고 다시 눌러 주세요.');
-      return;
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    let data;
-    try {
-      const res = await fetch(URL_API, { signal: controller.signal });
-      if (!res.ok) {
-        showError(`날씨 서버가 답을 주지 않았어요. (응답 번호 ${res.status}) 잠시 뒤에 다시 해 보세요.`);
-        return;
-      }
-      data = await res.json();
-    } catch (e) {
-      if (e.name === 'AbortError') {
-        showError(`${TIMEOUT_MS / 1000}초를 기다려도 답이 오지 않았어요. 인터넷이 느린지 확인해 보세요.`);
-      } else {
-        showError('날씨 서버에 닿지 못했어요. 인터넷 연결을 확인해 주세요.');
-      }
-      return;
-    } finally {
-      clearTimeout(timer);
-    }
-
-    const cur = data && data.current;
-    const daily = data && data.daily;
-    if (!cur || typeof cur.temperature_2m !== 'number' || !daily
-        || !daily.temperature_2m_max || !daily.temperature_2m_min) {
-      showError('받아 온 날씨 정보의 모양이 예상과 달라서 보여 줄 수 없어요.');
-      return;
-    }
-
+  // 날씨를 화면에 그림
+  function draw(data) {
+    const cur = data.current;
+    const daily = data.daily;
     const w = WEATHER[cur.weather_code] || [`알 수 없는 날씨 (${cur.weather_code}번)`, '🌡️'];
     const isNight = cur.is_day === 0;
     $('icon').textContent = (isNight && w[2]) || w[1];
@@ -209,13 +195,98 @@
     $('desc').textContent = w[0];
     $('max').textContent = round(daily.temperature_2m_max[0]);
     $('min').textContent = round(daily.temperature_2m_min[0]);
-    const t = (cur.time || '').split('T')[1];
-    $('updated').textContent = t ? `${t} 기준` : '';
+  }
+
+  // "11월 14일 오전 11:30" 처럼 바꿈 (오늘이면 "오늘 오전 11:30")
+  function whenText(ms) {
+    const d = new Date(ms);
+    const now = new Date();
+    const time = d.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
+    const sameDay = d.toDateString() === now.toDateString();
+    return sameDay ? `오늘 ${time}` : `${d.getMonth() + 1}월 ${d.getDate()}일 ${time}`;
+  }
+
+  function save(data) {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ savedAt: Date.now(), data })); } catch {}
+  }
+  function loadSaved() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+      return s && typeof s.savedAt === 'number' && isGood(s.data) ? s : null;
+    } catch { return null; }
+  }
+
+  // 새 날씨를 못 받아 왔을 때: 저장해 둔 게 있으면 그걸 언제 받은 건지와 같이 보여 주고, 없으면 까닭만 보여 줌
+  function fail(reason) {
+    const saved = loadSaved();
+    if (saved) {
+      draw(saved.data);
+      $('updated').textContent = `${whenText(saved.savedAt)}에 받은 정보`;
+      $('offlineText').textContent = `${reason} 그래서 ${whenText(saved.savedAt)}에 마지막으로 받은 날씨를 보여 줘요.`;
+      $('offline').hidden = false;
+      show('weather');
+      window.appState = 'saved';
+    } else {
+      $('reason').textContent = reason;
+      $('updated').textContent = '';
+      show('error');
+    }
+  }
+
+  async function loadWeather() {
+    show('loading');
+    $('updated').textContent = '';
+    $('offline').hidden = true;
+
+    if (!navigator.onLine) {
+      fail('인터넷에 연결되어 있지 않아요.');
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    let data;
+    try {
+      const res = await fetch(URL_API, { signal: controller.signal, cache: 'no-store' });
+      if (!res.ok) {
+        fail(`날씨 서버가 답을 주지 않았어요. (응답 번호 ${res.status})`);
+        return;
+      }
+      data = await res.json();
+    } catch (e) {
+      if (e.name === 'AbortError') fail(`${TIMEOUT_MS / 1000}초를 기다려도 날씨 서버가 답하지 않았어요.`);
+      else fail('날씨 서버에 닿지 못했어요. 인터넷 연결을 확인해 주세요.');
+      return;
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!isGood(data)) {
+      fail('받아 온 날씨 정보의 모양이 예상과 달라요.');
+      return;
+    }
+
+    save(data);
+    draw(data);
+    $('updated').textContent = `${whenText(Date.now())}에 받은 정보`;
     show('weather');
   }
 
   $('retry').addEventListener('click', loadWeather);
+  $('retry2').addEventListener('click', loadWeather);
+  // 인터넷이 다시 연결되면 저절로 새로 받아 옴
+  window.addEventListener('online', () => { if (window.appState !== 'ok') loadWeather(); });
   loadWeather();
+
+  // 서비스 워커 등록 (폰에 설치하고, 인터넷 없이도 앱이 열리게 함)
+  // file:// 로 열었을 때는 쓸 수 없어서 건너뜀
+  window.swState = 'none';
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => navigator.serviceWorker.ready)
+      .then(() => { window.swState = 'ready'; })
+      .catch(e => { window.swState = 'failed: ' + e.message; });
+  }
 </script>
 </body>
 </html>
