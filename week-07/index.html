@@ -85,6 +85,15 @@
     animation: pop .15s ease-out;
   }
   @keyframes pop { from { transform: translate(-50%, -50%) scale(.4); } to { transform: translate(-50%, -50%) scale(1); } }
+  /* 별을 잡았을 때 "+1" 이 떠오르고 점수 숫자가 살짝 커짐 */
+  .plus {
+    position: absolute; transform: translate(-50%, -50%); pointer-events: none;
+    font-size: 28px; line-height: 1; color: var(--hi); animation: rise .7s ease-out forwards;
+  }
+  @keyframes rise { from { opacity: 1; transform: translate(-50%, -50%); } to { opacity: 0; transform: translate(-50%, -190%); } }
+  .bump { display: inline-block; animation: bump .2s ease-out; }
+  @keyframes bump { 50% { transform: scale(1.4); } }
+  @media (prefers-reduced-motion: reduce) { .plus, .bump { animation-duration: .01s; } }
   .count { position: absolute; inset: 0; display: grid; place-items: center; font-size: 72px; pointer-events: none; }
 
   .center { text-align: center; }
@@ -283,6 +292,12 @@ function spawn() {
     if (state !== 'play') return;
     clearTimeout(gone); s.remove();
     score++; $('score').textContent = score;
+    const plus = document.createElement('div');
+    plus.className = 'plus'; plus.textContent = '+1';
+    plus.style.left = s.style.left; plus.style.top = s.style.top;
+    plus.addEventListener('animationend', () => plus.remove());
+    $('field').appendChild(plus);
+    $('score').classList.remove('bump'); void $('score').offsetWidth; $('score').classList.add('bump');   // 애니메이션을 처음부터 다시
   });
   $('field').appendChild(s);
 }

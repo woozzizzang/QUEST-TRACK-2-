@@ -27,7 +27,10 @@ export default async ({ ev, shot, sleep, waitUntil, log, send }) => {
     clicked += await ev(`(() => { let n = 0; for (const s of document.querySelectorAll('.star')) { s.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })); n++; } return n; })()`);
   }
   log('누른 별:', clicked, '/ 화면 점수:', await ev(`document.getElementById('score').textContent`));
+  log('잡은 뒤 떠오르는 +1:', await ev(`document.querySelectorAll('.plus').length`), '개 · 점수 숫자 bump:', await ev(`document.getElementById('score').classList.contains('bump')`));
   await shot('01-play-pc');
+  await sleep(1000);
+  log('1초 뒤 남은 +1 (마지막 클릭 이후 정리돼야 함):', await ev(`document.querySelectorAll('.plus').length`));
   log('별 위치가 판 안인가:', await ev(`[...document.querySelectorAll('.star')].every(s => { const f = document.getElementById('field').getBoundingClientRect(), r = s.getBoundingClientRect(); return r.left >= f.left && r.right <= f.right && r.top >= f.top && r.bottom <= f.bottom; })`));
   await waitUntil(`state === 'result'`, 40000);
   log('결과:', await ev(`document.getElementById('result-score').textContent + ' / ' + document.getElementById('result-note').textContent`));
