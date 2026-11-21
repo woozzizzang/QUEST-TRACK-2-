@@ -1,15 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- 바탕: 하늘색. 둘레까지 꽉 채워서 폰이 동그랗게 잘라도 괜찮음 -->
+  <!-- 바탕: 초록색. 둘레까지 꽉 채워서 폰이 동그랗게 잘라도 괜찮음 -->
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#4f8ff7"/>
-      <stop offset="1" stop-color="#2f6fdf"/>
+      <stop offset="0" stop-color="#6fd38a"/>
+      <stop offset="1" stop-color="#34ad55"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" fill="url(#sky)"/>
   <!-- 해 (가운데 안전 구역 안에 그림) -->
   <g fill="#ffd34d">
     <circle cx="214" cy="214" r="62"/>
+    <!-- 해 얼굴 -->
+    <circle cx="194" cy="206" r="8" fill="#5a3b12"/>
+    <circle cx="234" cy="206" r="8" fill="#5a3b12"/>
+    <circle cx="180" cy="230" r="9" fill="#ff9f8a" opacity="0.8"/>
+    <circle cx="248" cy="230" r="9" fill="#ff9f8a" opacity="0.8"/>
+    <path d="M200 228 Q214 242 228 228" fill="none" stroke="#5a3b12" stroke-width="6" stroke-linecap="round"/>
     <g stroke="#ffd34d" stroke-width="16" stroke-linecap="round">
       <line x1="214" y1="122" x2="214" y2="100"/>
       <line x1="214" y1="306" x2="214" y2="328"/>

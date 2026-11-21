@@ -7,26 +7,51 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="theme-color" content="#2f6fdf">
+<meta name="theme-color" content="#3cb85c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="동네 날씨">
 <style>
+  /* 귀엽고 동글동글한 초록 디자인 */
   :root {
-    --bg: #eef4fb;
+    --bg: #e6f6df;
+    --bg-dot: #d3efc8;
     --card: #ffffff;
-    --text: #1d2733;
-    --sub: #5b6b7d;
-    --accent: #2f6fdf;
+    --card-edge: #c9ecbd;
+    --text: #1f3a2a;
+    --sub: #557263;
+    --accent: #23843f;       /* 버튼 바탕 (흰 글자가 잘 읽히는 진한 초록) */
+    --accent-deep: #186b30;
+    --accent-text: #1b7a35;  /* 초록 글자 */
+    --fresh: #5fcf7c;        /* 밝은 초록 (꾸밈) */
+    --on-accent: #ffffff;
+    --soft: #eef9ea;
     --error: #c2412d;
+    --error-soft: #fdeee9;
+    --hi: #c13b17;
+    --lo: #2563c4;
+    --round-font: "Jua", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #121820;
-      --card: #1c2531;
-      --text: #e8eef5;
-      --sub: #9aabbd;
-      --accent: #6ea2ff;
-      --error: #ff8a73;
+      --bg: #0f1f17;
+      --bg-dot: #16291f;
+      --card: #1a3024;
+      --card-edge: #28473a;
+      --text: #eaf6ee;
+      --sub: #a9c8b5;
+      --accent: #5fd17d;
+      --accent-deep: #3aa95a;
+      --accent-text: #6fd98a;
+      --fresh: #5fd17d;
+      --on-accent: #0f1f17;
+      --soft: #213a2d;
+      --error: #ff9a82;
+      --error-soft: #3a2420;
+      --hi: #ff8a66;
+      --lo: #7fb0ff;
     }
   }
   * { box-sizing: border-box; }
@@ -34,81 +59,126 @@
   body {
     min-height: 100vh;
     min-height: 100dvh;
-    background: var(--bg);
+    background-color: var(--bg);
+    background-image: radial-gradient(var(--bg-dot) 18%, transparent 19%);
+    background-size: 28px 28px;
     color: var(--text);
     font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 16px;
+    -webkit-text-size-adjust: 100%;
   }
   .card {
     width: 100%;
     max-width: 420px;
     background: var(--card);
-    border-radius: 24px;
-    padding: clamp(20px, 6vw, 36px);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    border: 4px solid var(--card-edge);
+    border-radius: 40px;
+    padding: clamp(22px, 6vw, 36px) clamp(16px, 5vw, 32px);
+    box-shadow: 0 10px 0 var(--card-edge), 0 18px 40px rgba(37, 145, 63, 0.18);
     text-align: center;
   }
-  .place { margin: 0; font-size: clamp(18px, 5vw, 22px); font-weight: 600; }
-  .updated { margin: 4px 0 0; font-size: 13px; color: var(--sub); }
-  .icon { font-size: clamp(56px, 18vw, 80px); line-height: 1.1; margin-top: 16px; }
-  .temp { font-size: clamp(56px, 20vw, 88px); font-weight: 700; line-height: 1; margin-top: 4px; }
-  .desc { font-size: clamp(24px, 7vw, 32px); font-weight: 600; margin-top: 8px; }
+  .place {
+    display: inline-block;
+    margin: 0;
+    padding: 6px 18px;
+    border-radius: 999px;
+    background: var(--soft);
+    font-family: var(--round-font);
+    font-size: clamp(20px, 5.5vw, 24px);
+    font-weight: 400;
+    color: var(--accent-text);
+  }
+  .updated { margin: 8px 0 0; font-size: 14px; color: var(--sub); }
+  .icon {
+    font-size: clamp(52px, 15vw, 72px);
+    line-height: 1.1;
+    margin-top: 12px;
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  /* 지금 기온: 가장 크게 */
+  .temp {
+    font-family: var(--round-font);
+    font-size: clamp(80px, 27vw, 132px);
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: -2px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .desc {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 20px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-family: var(--round-font);
+    font-size: clamp(22px, 6.5vw, 28px);
+    font-weight: 400;
+  }
   .minmax {
     display: flex;
     justify-content: center;
-    gap: 16px;
+    gap: 10px;
     flex-wrap: wrap;
-    margin-top: 20px;
-    font-size: 15px;
+    margin-top: 16px;
+    font-size: 17px;
     color: var(--sub);
   }
-  .minmax b { color: var(--text); font-weight: 600; }
-  .message { margin: 32px 0 8px; font-size: 17px; line-height: 1.5; }
+  .minmax span { padding: 8px 16px; border-radius: 999px; background: var(--soft); }
+  .minmax b { font-family: var(--round-font); font-weight: 400; font-size: 20px; }
+  .minmax span:first-child b { color: var(--hi); }
+  .minmax span:last-child b { color: var(--lo); }
+  .message { margin: 28px 0 8px; font-family: var(--round-font); font-size: 20px; line-height: 1.5; }
   .message.error { color: var(--error); }
-  .reason { margin: 0; font-size: 14px; color: var(--sub); line-height: 1.5; }
+  .reason { margin: 0; font-size: 16px; color: var(--sub); line-height: 1.6; }
   .spinner {
-    width: 40px; height: 40px; margin: 32px auto 0;
-    border: 4px solid var(--bg); border-top-color: var(--accent);
+    width: 48px; height: 48px; margin: 32px auto 0;
+    border: 6px solid var(--soft); border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.9s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   button {
     margin-top: 20px;
-    padding: 12px 24px;
-    font: inherit;
-    font-size: 16px;
+    padding: 12px 28px;
+    font-family: var(--round-font);
+    font-size: 18px;
     border: 0;
     border-radius: 999px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
+    box-shadow: 0 5px 0 var(--accent-deep);
     cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s;
   }
+  button:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--accent-deep); }
   .offline {
     margin: 16px 0 0;
-    padding: 10px 14px;
-    border-radius: 12px;
-    background: var(--bg);
+    padding: 12px 16px;
+    border-radius: 24px;
+    background: var(--error-soft);
     color: var(--error);
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 15px;
+    line-height: 1.55;
   }
-  .offline button { margin-top: 8px; padding: 8px 18px; font-size: 14px; }
+  .offline button { margin-top: 10px; padding: 8px 20px; font-size: 16px; }
   /* 움직이는 온도계 */
   .temp-row {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(8px, 4vw, 20px);
-    margin-top: 4px;
+    gap: clamp(4px, 2.5vw, 16px);
+    margin-top: 6px;
   }
   .thermo-wrap { position: relative; flex: none; }
   .thermo {
     display: block;
-    width: clamp(76px, 23vw, 100px);
+    width: clamp(62px, 20vw, 96px);
     height: auto;
     touch-action: none; /* 끌 때 화면이 같이 움직이지 않게 */
     cursor: grab;
@@ -117,38 +187,51 @@
     -webkit-tap-highlight-color: transparent;
   }
   .thermo:active { cursor: grabbing; }
-  .thermo .glass { fill: var(--bg); stroke: var(--sub); stroke-opacity: 0.35; stroke-width: 2; }
-  .thermo .glass-in { fill: var(--bg); }
-  .thermo .shine { fill: #fff; opacity: 0.35; pointer-events: none; }
-  .thermo .ticks line { stroke: var(--sub); stroke-opacity: 0.5; stroke-width: 1.5; }
-  .thermo .ticks text { fill: var(--sub); font-size: 13px; }
-  .thermo .marks line { stroke-width: 2.5; stroke-linecap: round; }
-  .thermo .marks text { font-size: 14px; font-weight: 700; }
-  .thermo .marks .hi { stroke: #e8572f; fill: #e8572f; }
-  .thermo .marks .lo { stroke: #3b7ddd; fill: #3b7ddd; }
-  .thermo circle.bubble { fill: #fff; opacity: 0.7; }
+  .thermo .glass { fill: var(--soft); stroke: var(--fresh); stroke-opacity: 0.6; stroke-width: 3; }
+  .thermo .glass-in { fill: var(--soft); }
+  .thermo .shine { fill: #fff; opacity: 0.45; pointer-events: none; }
+  .thermo .ticks line { stroke: var(--sub); stroke-opacity: 0.5; stroke-width: 2; stroke-linecap: round; }
+  .thermo .marks line { stroke-width: 3; stroke-linecap: round; }
+  .thermo .marks text { font-size: 22px; font-family: var(--round-font); }
+  .thermo .marks .hi { stroke: var(--hi); fill: var(--hi); }
+  .thermo .marks .lo { stroke: var(--lo); fill: var(--lo); }
+  .thermo circle.bubble { fill: #fff; opacity: 0.75; }
   .thermo-tip {
     position: absolute;
     left: 50%;
-    bottom: calc(100% + 6px);
+    bottom: calc(100% + 8px);
     transform: translateX(-30%);
     width: max-content;
     max-width: min(240px, 70vw);
-    padding: 8px 12px;
-    border-radius: 12px;
-    background: var(--text);
-    color: var(--card);
-    font-size: 13px;
-    line-height: 1.4;
+    padding: 10px 14px;
+    border-radius: 20px;
+    background: var(--accent-deep);
+    color: #fff;
+    font-size: 15px;
+    line-height: 1.45;
     text-align: left;
     pointer-events: none;
     z-index: 2;
-    animation: tipIn 0.18s ease-out;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+    animation: tipIn 0.2s cubic-bezier(.3, 1.6, .5, 1);
   }
-  @keyframes tipIn { from { opacity: 0; transform: translate(-30%, 6px); } }
-  .source { margin-top: 24px; font-size: 12px; color: var(--sub); }
+  @keyframes tipIn { from { opacity: 0; transform: translate(-30%, 8px) scale(0.85); } }
+  .source { margin-top: 22px; font-size: 14px; color: var(--sub); }
   .source a { color: inherit; }
+  .source a.battle-link {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 999px;
+    background: var(--soft);
+    color: var(--accent-text);
+    font-family: var(--round-font);
+    font-size: 17px;
+    text-decoration: none;
+  }
   [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) {
+    .icon { animation: none; }
+  }
 </style>
 </head>
 <body>
@@ -180,7 +263,7 @@
     <div class="temp-row">
       <!-- 움직이는 온도계: 누르면 통 튀고, 위아래로 끌면 액체가 손가락을 따라옴 -->
       <div class="thermo-wrap">
-        <svg class="thermo" id="thermo" viewBox="-18 0 114 210" role="img" aria-label="지금 기온 온도계">
+        <svg class="thermo" id="thermo" viewBox="-38 0 96 210" role="img" aria-label="지금 기온 온도계">
           <defs>
             <clipPath id="thermoInside">
               <rect x="22" y="12" width="16" height="160" rx="8"/>
@@ -212,7 +295,7 @@
     </div>
   </section>
 
-  <p class="source"><a href="battle.html">⚔️ 친구 동네와 날씨 카드 배틀</a></p>
+  <p class="source"><a class="battle-link" href="battle.html">⚔️ 친구 동네와 날씨 카드 배틀</a></p>
   <p class="source">날씨 정보: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a></p>
 </main>
 
@@ -305,7 +388,7 @@
       return `rgb(${STOPS[STOPS.length - 1][1]})`;
     }
 
-    // 눈금 그리기
+    // 눈금 그리기 (선만. 숫자는 폰에서 너무 작아져서 뺌, 정확한 숫자는 누르면 말풍선으로)
     const ticks = $('thermoTicks');
     for (let t = T_MIN; t <= T_MAX; t += 10) {
       const y = tToY(t);
@@ -313,12 +396,6 @@
       l.setAttribute('x1', 44); l.setAttribute('x2', t % 20 === 0 ? 52 : 49);
       l.setAttribute('y1', y); l.setAttribute('y2', y);
       ticks.appendChild(l);
-      if (t % 20 === 0) {
-        const tx = document.createElementNS(NS, 'text');
-        tx.setAttribute('x', 54); tx.setAttribute('y', y + 4.5);
-        tx.textContent = t + '°';
-        ticks.appendChild(tx);
-      }
     }
 
     // 움직임 상태
@@ -347,11 +424,11 @@
         g.appendChild(l);
         const tx = document.createElementNS(NS, 'text');
         tx.setAttribute('class', cls);
-        tx.setAttribute('x', 8); tx.setAttribute('text-anchor', 'end');
+        tx.setAttribute('x', 7); tx.setAttribute('text-anchor', 'end');
         // 최고·최저가 너무 가까우면 글자가 겹치지 않게 벌림
         const gap = Math.abs(tToY(s.hi) - tToY(s.lo));
-        const shift = gap < 16 ? (cls === 'hi' ? -(16 - gap) / 2 : (16 - gap) / 2) : 0;
-        tx.setAttribute('y', y + 5 + shift);
+        const shift = gap < 22 ? (cls === 'hi' ? -(22 - gap) / 2 : (22 - gap) / 2) : 0;
+        tx.setAttribute('y', y + 7.5 + shift);
         tx.textContent = Math.round(t) + '°';
         g.appendChild(tx);
       }

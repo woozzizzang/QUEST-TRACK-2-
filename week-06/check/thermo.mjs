@@ -48,7 +48,7 @@ export default async function ({ ev, shot, sleep, waitUntil, log, send }) {
 
   // 2. 누르기
   const b = await box();
-  const cx = b.x + b.w * (30 + 18) / 114; // 유리관 가운데 (viewBox -18 기준)
+  const cx = b.x + b.w * (30 + 38) / 96; // 유리관 가운데 (viewBox -38 기준)
   const cy = b.y + b.h * 0.5;
   const scroll0 = await ev('window.scrollY');
   await touch('touchStart', cx, cy);
@@ -94,7 +94,7 @@ export default async function ({ ev, shot, sleep, waitUntil, log, send }) {
     await resize(w, h);
     await sleep(300);
     const bb = await box();
-    await touch('touchStart', bb.x + bb.w * 48 / 114, bb.y + bb.h * 0.4);
+    await touch('touchStart', bb.x + bb.w * 68 / 96, bb.y + bb.h * 0.4);
     await sleep(200);
     log(`[${w}x${h}] 온도계 ${Math.round(bb.w)}x${Math.round(bb.h)} / 말풍선 뜬 채 잘림 검사:`, JSON.stringify(await overflow()));
     await shot(`5-폭-${w}`);
