@@ -97,6 +97,55 @@
     line-height: 1.5;
   }
   .offline button { margin-top: 8px; padding: 8px 18px; font-size: 14px; }
+  /* 움직이는 온도계 */
+  .temp-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(8px, 4vw, 20px);
+    margin-top: 4px;
+  }
+  .thermo-wrap { position: relative; flex: none; }
+  .thermo {
+    display: block;
+    width: clamp(76px, 23vw, 100px);
+    height: auto;
+    touch-action: none; /* 끌 때 화면이 같이 움직이지 않게 */
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .thermo:active { cursor: grabbing; }
+  .thermo .glass { fill: var(--bg); stroke: var(--sub); stroke-opacity: 0.35; stroke-width: 2; }
+  .thermo .glass-in { fill: var(--bg); }
+  .thermo .shine { fill: #fff; opacity: 0.35; pointer-events: none; }
+  .thermo .ticks line { stroke: var(--sub); stroke-opacity: 0.5; stroke-width: 1.5; }
+  .thermo .ticks text { fill: var(--sub); font-size: 13px; }
+  .thermo .marks line { stroke-width: 2.5; stroke-linecap: round; }
+  .thermo .marks text { font-size: 14px; font-weight: 700; }
+  .thermo .marks .hi { stroke: #e8572f; fill: #e8572f; }
+  .thermo .marks .lo { stroke: #3b7ddd; fill: #3b7ddd; }
+  .thermo circle.bubble { fill: #fff; opacity: 0.7; }
+  .thermo-tip {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 6px);
+    transform: translateX(-30%);
+    width: max-content;
+    max-width: min(240px, 70vw);
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: var(--text);
+    color: var(--card);
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: left;
+    pointer-events: none;
+    z-index: 2;
+    animation: tipIn 0.18s ease-out;
+  }
+  @keyframes tipIn { from { opacity: 0; transform: translate(-30%, 6px); } }
   .source { margin-top: 24px; font-size: 12px; color: var(--sub); }
   .source a { color: inherit; }
   [hidden] { display: none !important; }
@@ -128,7 +177,34 @@
       <button id="retry2" type="button">다시 불러오기</button>
     </div>
     <div class="icon" id="icon" aria-hidden="true"></div>
-    <div class="temp" id="temp"></div>
+    <div class="temp-row">
+      <!-- 움직이는 온도계: 누르면 통 튀고, 위아래로 끌면 액체가 손가락을 따라옴 -->
+      <div class="thermo-wrap">
+        <svg class="thermo" id="thermo" viewBox="-18 0 114 210" role="img" aria-label="지금 기온 온도계">
+          <defs>
+            <clipPath id="thermoInside">
+              <rect x="22" y="12" width="16" height="160" rx="8"/>
+              <circle cx="30" cy="178" r="16"/>
+            </clipPath>
+          </defs>
+          <!-- 유리관 -->
+          <rect class="glass" x="18" y="8" width="24" height="168" rx="12"/>
+          <circle class="glass" cx="30" cy="178" r="20"/>
+          <g clip-path="url(#thermoInside)">
+            <rect class="glass-in" x="0" y="0" width="60" height="210"/>
+            <path id="thermoLiquid" d=""/>
+            <g id="thermoBubbles"></g>
+          </g>
+          <!-- 눈금 (-20° ~ 40°, 10° 마다) -->
+          <g id="thermoTicks" class="ticks"></g>
+          <!-- 오늘 최고 · 최저 표시 -->
+          <g id="thermoMarks" class="marks"></g>
+          <rect class="shine" x="25" y="18" width="4" height="140" rx="2"/>
+        </svg>
+        <div class="thermo-tip" id="thermoTip" hidden></div>
+      </div>
+      <div class="temp" id="temp"></div>
+    </div>
     <div class="desc" id="desc"></div>
     <div class="minmax">
       <span>최고 <b id="max"></b></span>
@@ -196,7 +272,195 @@
     $('desc').textContent = w[0];
     $('max').textContent = round(daily.temperature_2m_max[0]);
     $('min').textContent = round(daily.temperature_2m_min[0]);
+    thermo.set(cur.temperature_2m, daily.temperature_2m_min[0], daily.temperature_2m_max[0]);
   }
+
+  // ── 움직이는 온도계 ──
+  const thermo = (() => {
+    const T_MIN = -20, T_MAX = 40;      // 온도계 눈금 범위
+    const Y_TOP = 20, Y_BOTTOM = 160;   // 그 범위가 그려지는 높이 (svg 안 좌표)
+    const svg = $('thermo');
+    const liquid = $('thermoLiquid');
+    const bubbleBox = $('thermoBubbles');
+    const tip = $('thermoTip');
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const NS = 'http://www.w3.org/2000/svg';
+
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const tToY = t => Y_BOTTOM - (clamp(t, T_MIN, T_MAX) - T_MIN) / (T_MAX - T_MIN) * (Y_BOTTOM - Y_TOP);
+    const yToT = y => T_MIN + (Y_BOTTOM - y) / (Y_BOTTOM - Y_TOP) * (T_MAX - T_MIN);
+
+    // 기온 → 색 (추우면 파랑, 따뜻하면 주황, 더우면 빨강)
+    const STOPS = [[-10, [59, 125, 221]], [5, [76, 176, 224]], [15, [242, 163, 58]], [27, [232, 87, 47]], [35, [208, 38, 42]]];
+    function colorFor(t) {
+      if (t <= STOPS[0][0]) return `rgb(${STOPS[0][1]})`;
+      for (let i = 1; i < STOPS.length; i++) {
+        const [t1, c1] = STOPS[i];
+        if (t <= t1) {
+          const [t0, c0] = STOPS[i - 1];
+          const k = (t - t0) / (t1 - t0);
+          return `rgb(${c0.map((c, j) => Math.round(c + (c1[j] - c) * k))})`;
+        }
+      }
+      return `rgb(${STOPS[STOPS.length - 1][1]})`;
+    }
+
+    // 눈금 그리기
+    const ticks = $('thermoTicks');
+    for (let t = T_MIN; t <= T_MAX; t += 10) {
+      const y = tToY(t);
+      const l = document.createElementNS(NS, 'line');
+      l.setAttribute('x1', 44); l.setAttribute('x2', t % 20 === 0 ? 52 : 49);
+      l.setAttribute('y1', y); l.setAttribute('y2', y);
+      ticks.appendChild(l);
+      if (t % 20 === 0) {
+        const tx = document.createElementNS(NS, 'text');
+        tx.setAttribute('x', 54); tx.setAttribute('y', y + 4.5);
+        tx.textContent = t + '°';
+        ticks.appendChild(tx);
+      }
+    }
+
+    // 움직임 상태
+    const s = {
+      temp: null, lo: null, hi: null,
+      level: T_MIN - 5,  // 지금 그려진 액체 높이(기온 단위). 처음엔 바닥에서 차오름
+      vel: 0,
+      target: T_MIN - 5,
+      amp: 1.5,          // 출렁임 크기
+      phase: 0,
+      dragging: false,
+      bubbles: [],
+      taps: 0,
+    };
+    window.thermoState = s; // 확인 도구가 읽는 값
+
+    function drawMarks() {
+      const g = $('thermoMarks');
+      g.innerHTML = '';
+      for (const [cls, t, label] of [['hi', s.hi, '최고'], ['lo', s.lo, '최저']]) {
+        if (typeof t !== 'number') continue;
+        const y = tToY(t);
+        const l = document.createElementNS(NS, 'line');
+        l.setAttribute('class', cls);
+        l.setAttribute('x1', 10); l.setAttribute('x2', 16); l.setAttribute('y1', y); l.setAttribute('y2', y);
+        g.appendChild(l);
+        const tx = document.createElementNS(NS, 'text');
+        tx.setAttribute('class', cls);
+        tx.setAttribute('x', 8); tx.setAttribute('text-anchor', 'end');
+        // 최고·최저가 너무 가까우면 글자가 겹치지 않게 벌림
+        const gap = Math.abs(tToY(s.hi) - tToY(s.lo));
+        const shift = gap < 16 ? (cls === 'hi' ? -(16 - gap) / 2 : (16 - gap) / 2) : 0;
+        tx.setAttribute('y', y + 5 + shift);
+        tx.textContent = Math.round(t) + '°';
+        g.appendChild(tx);
+      }
+    }
+
+    function render() {
+      const y = tToY(s.level);
+      // 물결치는 윗면
+      let d = `M0 210 L0 ${y}`;
+      for (let x = 0; x <= 60; x += 4) {
+        d += ` L${x} ${(y + Math.sin(s.phase + x / 6) * s.amp).toFixed(2)}`;
+      }
+      d += ' L60 210 Z';
+      liquid.setAttribute('d', d);
+      liquid.setAttribute('fill', colorFor(s.level));
+    }
+
+    function addBubbles(n) {
+      for (let i = 0; i < n; i++) {
+        const c = document.createElementNS(NS, 'circle');
+        c.setAttribute('class', 'bubble');
+        const b = { el: c, x: 24 + Math.random() * 12, y: 186 - Math.random() * 10, r: 1.5 + Math.random() * 2.5, sp: 0.8 + Math.random() * 1.2 };
+        c.setAttribute('r', b.r);
+        bubbleBox.appendChild(c);
+        s.bubbles.push(b);
+      }
+    }
+
+    let last = 0;
+    function frame(now) {
+      const dt = Math.min(0.05, (now - (last || now)) / 1000);
+      last = now;
+      // 용수철처럼 목표 높이로 다가감 → 살짝 넘쳤다가 돌아옴
+      const acc = (s.target - s.level) * 40 - s.vel * 7;
+      s.vel += acc * dt;
+      s.level += s.vel * dt;
+      // 출렁임: 움직이면 커지고 가만히 있으면 작게 남음
+      s.amp += (Math.min(6, 1 + Math.abs(s.vel) * 0.15) - s.amp) * dt * 2.5;
+      s.phase += dt * (3 + Math.abs(s.vel) * 0.2);
+      // 거품: 위로 올라가다가 액체 윗면에서 사라짐
+      const top = tToY(s.level);
+      s.bubbles = s.bubbles.filter(b => {
+        b.y -= b.sp * 60 * dt;
+        b.x += Math.sin(b.y / 6) * 0.3;
+        if (b.y < top + 2) { b.el.remove(); return false; }
+        b.el.setAttribute('cx', b.x.toFixed(2));
+        b.el.setAttribute('cy', b.y.toFixed(2));
+        return true;
+      });
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    let tipTimer = 0;
+    function showTip(text, stay) {
+      tip.textContent = text;
+      tip.hidden = false;
+      clearTimeout(tipTimer);
+      if (!stay) tipTimer = setTimeout(() => { tip.hidden = true; }, 2500);
+    }
+    const nowText = () => `지금 ${Math.round(s.temp)}°, 오늘 최저 ${Math.round(s.lo)}° ~ 최고 ${Math.round(s.hi)}°`;
+
+    // 손가락(마우스) 위치 → 온도계 안의 기온
+    function pointerTemp(e) {
+      const r = svg.getBoundingClientRect();
+      const y = (e.clientY - r.top) / r.height * 210;
+      return clamp(yToT(y), T_MIN, T_MAX);
+    }
+
+    svg.addEventListener('pointerdown', e => {
+      if (s.temp === null) return;
+      e.preventDefault();
+      svg.setPointerCapture(e.pointerId);
+      s.dragging = true;
+      s.taps++;
+      s.vel += 60;          // 통 튀어 오름
+      s.amp = 6;
+      addBubbles(8);
+      showTip(nowText(), true);
+    });
+    svg.addEventListener('pointermove', e => {
+      if (!s.dragging) return;
+      s.target = pointerTemp(e);
+      if (reduceMotion) { s.level = s.target; render(); }
+      else if (Math.random() < 0.3) addBubbles(1);
+      showTip(`손가락 위치 ${Math.round(s.target)}° · ${nowText()}`, true);
+    });
+    const release = () => {
+      if (!s.dragging) return;
+      s.dragging = false;
+      s.target = s.temp;    // 지금 기온으로 돌아감
+      if (reduceMotion) { s.level = s.temp; render(); }
+      showTip(nowText(), false);
+    };
+    svg.addEventListener('pointerup', release);
+    svg.addEventListener('pointercancel', release);
+
+    if (!reduceMotion) requestAnimationFrame(frame);
+
+    return {
+      set(temp, lo, hi) {
+        s.temp = temp; s.lo = lo; s.hi = hi;
+        s.target = temp;
+        svg.setAttribute('aria-label', `온도계: ${nowText()}`);
+        drawMarks();
+        if (reduceMotion) { s.level = temp; render(); }
+      },
+    };
+  })();
 
   // "11월 14일 오전 11:30" 처럼 바꿈 (오늘이면 "오늘 오전 11:30")
   function whenText(ms) {
