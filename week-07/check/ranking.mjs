@@ -8,6 +8,22 @@ export default async ({ ev, shot, sleep, waitUntil, log, send }) => {
   log('로그인 자리:', await ev(`document.getElementById('login-slot').textContent`));
   log('로그인 단추(button/a) 개수 (0 이어야 함):', await ev(`document.querySelectorAll('header button, header a').length`));
 
+  const slotLook = async name => {
+    log('로그인 자리 모양 (' + name + '):', await ev(`(() => {
+      const el = document.getElementById('login-slot'), cs = getComputedStyle(el);
+      const parse = c => (c.match(/[\\d.]+/g) || []).map(Number);
+      const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+      const lum = ([r, g, b]) => 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      const [a, b] = [lum(parse(cs.color)), lum(parse(getComputedStyle(document.body).backgroundColor))].sort((x, y) => y - x);
+      return '테두리 ' + cs.borderTopWidth + ' · 둥글기 ' + cs.borderTopLeftRadius + ' · 커서 ' + cs.cursor + ' · 글자 대비 ' + ((a + 0.05) / (b + 0.05)).toFixed(2);
+    })()`));
+  };
+  await slotLook('밝은 화면');
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
+  await slotLook('어두운 화면');
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+  await shot('00-login-slot-pc');
+
   const fit = () => ev(`(() => {
     const w = document.documentElement.clientWidth;
     const bad = [...document.querySelectorAll('body *')].filter(e => { if (e.closest('[hidden]')) return false; const r = e.getBoundingClientRect(); return r.width && (r.right > w + 1 || r.left < -1); }).map(e => e.id || e.className);
