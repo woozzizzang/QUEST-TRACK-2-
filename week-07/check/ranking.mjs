@@ -60,6 +60,24 @@ export default async ({ ev, shot, sleep, waitUntil, log, send }) => {
   log('0점 판 후 어려움 기록 수(0):', await ev(`Store.top('hard').length`), '/ 안내:', await ev(`document.getElementById('result-score').textContent + ' · ' + document.getElementById('result-note').textContent`));
   await shot('02b-zero-result');
 
+  // 그만두기: 카운트다운 중 · 놀이 중 모두 점수 저장 없이 시작 화면으로, 그 뒤 새 판이 정상 시작
+  await ev(`level = 'hard'; startGame(); true`);
+  await sleep(500);
+  await ev(`document.getElementById('quit-btn').click(); true`);
+  await sleep(3000);
+  log('카운트다운 중 그만두기 → 상태(start):', await ev('state'), '/ 시작 화면 보임:', await ev(`!document.getElementById('screen-start').hidden && document.getElementById('screen-play').hidden`));
+  await ev(`startGame(); true`);
+  await waitUntil(`state === 'play'`, 5000);
+  await sleep(500);
+  await ev(`document.querySelectorAll('.star').forEach(s => s.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }))); document.getElementById('quit-btn').click(); true`);
+  await sleep(2500);
+  log('놀이 중 그만두기 → 상태(start):', await ev('state'), '/ 남은 별·+1 (0):', await ev(`document.querySelectorAll('.star, .plus').length`), '/ 어려움 기록 수(0):', await ev(`Store.top('hard').length`), '/ 시간 표시:', await ev(`document.getElementById('time').textContent`));
+  await shot('02c-after-quit');
+  await ev(`startGame(); true`);
+  await waitUntil(`state === 'play'`, 5000);
+  log('그만둔 뒤 새 판 시작 → 상태:', await ev('state'));
+  await ev(`quitGame(); true`);
+
   // 폰 · 작은 폰 · 어두운 화면
   for (const [w, h, name] of [[390, 800, 'phone'], [320, 640, 'small']]) {
     await resize(w, h);
