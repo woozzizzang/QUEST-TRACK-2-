@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>별 잡기 랭킹</title>
+<meta name="theme-color" content="#23843f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<style>
+  :root {
+    --bg: #e6f6df;
+    --card: #ffffff;
+    --edge: #c9ecbd;
+    --text: #1f3a2a;
+    --sub: #557263;
+    --accent: #23843f;
+    --accent-deep: #186b30;
+    --on-accent: #ffffff;
+    --soft: #eef9ea;
+    --field: #d6f0cc;
+    --star: #f2b705;
+    --star-edge: #b88400;
+    --hi: #8a5a00;
+    --round-font: "Jua", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1f17; --card: #17301f; --edge: #2a4d36; --text: #e8f5ea; --sub: #a9c7b2;
+      --accent: #2f9e4f; --accent-deep: #3bb25e; --on-accent: #08170d; --soft: #1d3a27;
+      --field: #1d3a27; --hi: #f2c94c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--round-font); font-size: 17px; line-height: 1.5;
+    min-height: 100vh; padding: 12px 14px 32px;
+  }
+  .wrap { width: 100%; max-width: 680px; margin: 0 auto; }
+
+  /* 맨 위: 제목 + 로그인 자리 */
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  h1 { font-size: clamp(22px, 6vw, 30px); margin: 0; font-weight: 400; }
+  .login-slot {
+    min-width: 96px; padding: 8px 14px; text-align: center; font-size: 14px;
+    border: 2px dashed var(--sub); border-radius: 999px; color: var(--sub);
+  }
+
+  .card { background: var(--card); border: 2px solid var(--edge); border-radius: 22px; padding: 16px; margin-bottom: 14px; }
+  h2 { font-size: 20px; margin: 0 0 10px; font-weight: 400; }
+  .hint { color: var(--sub); font-size: 14px; margin: 6px 0 0; }
+
+  button { font: inherit; cursor: pointer; }
+  .btn {
+    background: var(--accent); color: var(--on-accent); border: 0; border-radius: 999px;
+    padding: 12px 24px; font-size: 19px; min-height: 48px; box-shadow: 0 4px 0 var(--accent-deep);
+  }
+  .btn:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--accent-deep); }
+  .btn.ghost { background: var(--soft); color: var(--text); box-shadow: 0 4px 0 var(--edge); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+  /* 난이도 고르기 */
+  .levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .level {
+    background: var(--soft); color: var(--text); border: 2px solid var(--edge); border-radius: 16px;
+    padding: 10px 4px; font-size: 17px; min-height: 64px;
+  }
+  .level small { display: block; font-size: 14px; color: var(--sub); }
+  .level[aria-pressed="true"] { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 3px var(--accent); }
+
+  /* 놀이판 */
+  .hud { display: flex; justify-content: space-between; font-size: 22px; margin-bottom: 8px; }
+  .field {
+    position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 70vh;
+    background: var(--field); border-radius: 18px; overflow: hidden; touch-action: manipulation;
+    user-select: none; -webkit-user-select: none;
+  }
+  .star {
+    position: absolute; width: clamp(48px, 15%, 84px); aspect-ratio: 1; transform: translate(-50%, -50%);
+    border: 3px solid var(--star-edge); border-radius: 50%; background: var(--star);
+    font-size: clamp(24px, 6vw, 40px); line-height: 1; padding: 0; color: var(--star-edge);
+    animation: pop .15s ease-out;
+  }
+  @keyframes pop { from { transform: translate(-50%, -50%) scale(.4); } to { transform: translate(-50%, -50%) scale(1); } }
+  .count { position: absolute; inset: 0; display: grid; place-items: center; font-size: 72px; pointer-events: none; }
+
+  .center { text-align: center; }
+  .big { font-size: clamp(44px, 14vw, 72px); line-height: 1.1; margin: 4px 0; }
+  .new { color: var(--hi); font-size: 22px; }
+
+  /* 랭킹 */
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tab { flex: 1; padding: 8px 4px; border-radius: 999px; border: 2px solid var(--edge); background: var(--soft); color: var(--text); font-size: 16px; min-height: 44px; }
+  .tab[aria-selected="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  ol.rank { list-style: none; margin: 0; padding: 0; }
+  ol.rank li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 12px; font-size: 18px; }
+  ol.rank li:nth-child(odd) { background: var(--soft); }
+  ol.rank li.me { outline: 3px solid var(--accent); }
+  ol.rank .date { color: var(--sub); font-size: 14px; align-self: center; }
+  ol.rank .pts { margin-left: auto; }
+  .empty { color: var(--sub); text-align: center; padding: 12px 0; margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>⭐ 별 잡기 랭킹</h1>
+    <!-- 로그인은 아직 만들지 않음: 나중에 이 자리에 로그인 단추를 넣음 -->
+    <div class="login-slot" id="login-slot">로그인 자리</div>
+  </header>
+
+  <!-- 시작 화면 -->
+  <section class="card" id="screen-start">
+    <h2>난이도를 고르세요</h2>
+    <div class="levels" id="levels"></div>
+    <div class="center">
+      <p class="hint" style="margin:0 0 12px">30초 동안 나타나는 별을 눌러 잡으세요. 1개에 1점!</p>
+      <button class="btn" id="start-btn">시작</button>
+    </div>
+  </section>
+
+  <!-- 놀이 화면 -->
+  <section class="card" id="screen-play" hidden>
+    <div class="hud"><span>⏱ <b id="time">30</b>초</span><span>⭐ <b id="score">0</b>점</span></div>
+    <div class="field" id="field" aria-label="별을 누르는 판"><div class="count" id="count"></div></div>
+  </section>
+
+  <!-- 결과 화면 -->
+  <section class="card center" id="screen-result" hidden>
+    <h2 id="result-level">결과</h2>
+    <div class="big" id="result-score">0점</div>
+    <p class="new" id="result-note"></p>
+    <div class="row">
+      <button class="btn" id="again-btn">다시 하기</button>
+      <button class="btn ghost" id="home-btn">난이도 바꾸기</button>
+    </div>
+  </section>
+
+  <!-- 이 기기 랭킹 -->
+  <section class="card" id="ranking">
+    <h2>🏆 이 기기 랭킹 (상위 10개)</h2>
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <ol class="rank" id="rank-list"></ol>
+    <p class="empty" id="rank-empty" hidden>아직 기록이 없어요. 한 판 해 보세요!</p>
+    <p class="hint">지금은 이 기기의 브라우저에만 저장돼요. 온라인 랭킹은 나중에 붙여요.</p>
+  </section>
+</div>
+
+<script>
+// ───────── 저장하는 코드는 여기 한곳에 모음 ─────────
+// 나중에 로그인·온라인 보관함을 붙일 때는 이 Store 안만 바꾸면 된다.
+const Store = {
+  KEY: 'minigame-records-v1',
+  memory: null,                     // 브라우저 저장소를 못 쓸 때 임시로 쓰는 곳
+  load() {
+    try { return JSON.parse(localStorage.getItem(this.KEY)) || {}; }
+    catch { return this.memory || {}; }
+  },
+  save(data) {
+    this.memory = data;
+    try { localStorage.setItem(this.KEY, JSON.stringify(data)); return true; }
+    catch { return false; }
+  },
+  // 기록 하나 남기기. 남기는 것: 점수 · 난이도 · 날짜. 돌려주는 값: 새 기록이 몇 등인지(상위 10개 밖이면 0)
+  add(level, score) {
+    const data = this.load();
+    const list = data[level] || [];
+    const rec = { score, at: new Date().toISOString() };
+    const wasBest = list.length === 0 || score > list[0].score;
+    list.push(rec);
+    list.sort((a, b) => b.score - a.score || a.at.localeCompare(b.at));
+    data[level] = list.slice(0, 10);
+    this.save(data);
+    const place = data[level].indexOf(rec) + 1;
+    return { place, wasBest, rec };
+  },
+  top(level) { return this.load()[level] || []; },
+  best(level) { const t = this.top(level); return t.length ? t[0].score : null; },
+};
+
+// ───────── 난이도 ─────────
+const LEVELS = {
+  easy:   { name: '쉬움',   note: '느릿느릿', life: 1800, gap: 900 },
+  normal: { name: '보통',   note: '적당히',   life: 1200, gap: 650 },
+  hard:   { name: '어려움', note: '빠르게',   life: 800,  gap: 450 },
+};
+const GAME_SECONDS = 30;
+const $ = id => document.getElementById(id);
+
+let level = 'normal';      // 고른 난이도
+let rankLevel = 'normal';  // 랭킹에서 보는 난이도
+let state = 'start';       // start | counting | play | result
+let score = 0;
+let timer = null, spawnTimer = null;
+let lastRec = null;
+
+function show(name) {
+  state = name === 'screen-start' ? 'start' : state;
+  for (const id of ['screen-start', 'screen-play', 'screen-result']) $(id).hidden = id !== name;
+}
+
+// ───────── 난이도 단추 · 랭킹 탭 ─────────
+function drawLevels() {
+  $('levels').innerHTML = '';
+  for (const [key, L] of Object.entries(LEVELS)) {
+    const b = document.createElement('button');
+    b.className = 'level'; b.type = 'button';
+    b.setAttribute('aria-pressed', key === level);
+    const best = Store.best(key);
+    b.innerHTML = `${L.name}<small>${best === null ? L.note : '최고 ' + best + '점'}</small>`;
+    b.onclick = () => { level = key; rankLevel = key; drawLevels(); drawRanking(); };
+    $('levels').appendChild(b);
+  }
+}
+function drawRanking() {
+  $('tabs').innerHTML = '';
+  for (const [key, L] of Object.entries(LEVELS)) {
+    const b = document.createElement('button');
+    b.className = 'tab'; b.type = 'button'; b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', key === rankLevel);
+    b.textContent = L.name;
+    b.onclick = () => { rankLevel = key; drawRanking(); };
+    $('tabs').appendChild(b);
+  }
+  const list = Store.top(rankLevel);
+  $('rank-empty').hidden = list.length > 0;
+  $('rank-list').innerHTML = '';
+  list.forEach((r, i) => {
+    const li = document.createElement('li');
+    if (lastRec && r.at === lastRec.at && r.score === lastRec.score && rankLevel === lastRec.level) li.className = 'me';
+    const d = new Date(r.at);
+    li.innerHTML = `<span>${i + 1}등</span><span class="pts">${r.score}점</span><span class="date">${d.getMonth() + 1}/${d.getDate()}</span>`;
+    $('rank-list').appendChild(li);
+  });
+}
+
+// ───────── 게임 ─────────
+function startGame() {
+  score = 0; lastRec = null;
+  $('score').textContent = '0';
+  $('time').textContent = GAME_SECONDS;
+  [...$('field').querySelectorAll('.star')].forEach(s => s.remove());
+  show('screen-play');
+  state = 'counting';
+  let n = 3;
+  $('count').textContent = n;
+  const c = setInterval(() => {
+    n--;
+    if (n > 0) { $('count').textContent = n; return; }
+    clearInterval(c);
+    $('count').textContent = '';
+    beginPlay();
+  }, 700);
+}
+
+function beginPlay() {
+  state = 'play';
+  const L = LEVELS[level];
+  const endAt = performance.now() + GAME_SECONDS * 1000;
+  spawn();
+  spawnTimer = setInterval(spawn, L.gap);
+  timer = setInterval(() => {
+    const left = Math.max(0, Math.ceil((endAt - performance.now()) / 1000));
+    $('time').textContent = left;
+    if (left <= 0) endGame();
+  }, 100);
+}
+
+function spawn() {
+  if (state !== 'play') return;
+  const L = LEVELS[level];
+  const s = document.createElement('button');
+  s.className = 'star'; s.type = 'button'; s.textContent = '★'; s.setAttribute('aria-label', '별');
+  s.style.left = (12 + Math.random() * 76) + '%';   // 판 가장자리에서 잘리지 않게 안쪽에서만 나옴
+  s.style.top = (14 + Math.random() * 72) + '%';
+  const gone = setTimeout(() => s.remove(), L.life);
+  s.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (state !== 'play') return;
+    clearTimeout(gone); s.remove();
+    score++; $('score').textContent = score;
+  });
+  $('field').appendChild(s);
+}
+
+function endGame() {
+  clearInterval(timer); clearInterval(spawnTimer);
+  state = 'result';
+  [...$('field').querySelectorAll('.star')].forEach(s => s.remove());
+  const r = Store.add(level, score);
+  lastRec = { ...r.rec, level };
+  rankLevel = level;
+  $('result-level').textContent = LEVELS[level].name + ' 결과';
+  $('result-score').textContent = score + '점';
+  $('result-note').textContent = r.place === 0 ? '' : r.wasBest ? '🎉 새 최고 기록!' : r.place + '등에 올랐어요!';
+  show('screen-result');
+  drawLevels(); drawRanking();
+}
+
+$('start-btn').onclick = startGame;
+$('again-btn').onclick = startGame;
+$('home-btn').onclick = () => { state = 'start'; show('screen-start'); };
+drawLevels(); drawRanking();
+</script>
+</body>
+</html>
