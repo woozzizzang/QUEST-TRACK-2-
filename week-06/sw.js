@@ -1,10 +1,11 @@
 // 서비스 워커: 앱 화면 파일을 폰에 저장해 두어서 인터넷이 끊겨도 앱이 열리게 함.
 // 날씨 정보는 여기서 저장하지 않고, index.html 이 마지막으로 받은 것을 따로 저장함.
 // 앱 파일을 바꾸면 아래 번호를 올려야 폰이 새 파일을 받음.
-const CACHE = 'weather-v1';
+const CACHE = 'weather-v2';
 const FILES = [
   './',
   './index.html',
+  './battle.html',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
