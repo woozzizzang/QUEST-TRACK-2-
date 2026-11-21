@@ -291,12 +291,16 @@ function endGame() {
   clearInterval(timer); clearInterval(spawnTimer);
   state = 'result';
   [...$('field').querySelectorAll('.star')].forEach(s => s.remove());
-  const r = Store.add(level, score);
-  lastRec = { ...r.rec, level };
   rankLevel = level;
   $('result-level').textContent = LEVELS[level].name + ' 결과';
   $('result-score').textContent = score + '점';
-  $('result-note').textContent = r.place === 0 ? '' : r.wasBest ? '🎉 새 최고 기록!' : r.place + '등에 올랐어요!';
+  if (score > 0) {                  // 0점은 기록으로 남기지 않음
+    const r = Store.add(level, score);
+    lastRec = { ...r.rec, level };
+    $('result-note').textContent = r.place === 0 ? '' : r.wasBest ? '🎉 새 최고 기록!' : r.place + '등에 올랐어요!';
+  } else {
+    $('result-note').textContent = '별을 못 잡았어요. 다시 해 볼까요?';
+  }
   show('screen-result');
   drawLevels(); drawRanking();
 }

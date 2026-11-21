@@ -50,6 +50,13 @@ export default async ({ ev, shot, sleep, waitUntil, log, send }) => {
   await ev(`for (let i = 1; i <= 12; i++) Store.add('easy', i); Store.top('easy').length`);
   log('쉬움 12번 저장 후 줄 수(10):', await ev(`Store.top('easy').length`), '/ 1등 점수(12):', await ev(`Store.best('easy')`));
 
+  // 0점은 기록으로 남지 않아야 함
+  await ev(`level = 'hard'; rankLevel = 'hard'; startGame(); true`);
+  await waitUntil(`state === 'play'`, 5000);
+  await ev('endGame(); true');
+  log('0점 판 후 어려움 기록 수(0):', await ev(`Store.top('hard').length`), '/ 안내:', await ev(`document.getElementById('result-score').textContent + ' · ' + document.getElementById('result-note').textContent`));
+  await shot('02b-zero-result');
+
   // 폰 · 작은 폰 · 어두운 화면
   for (const [w, h, name] of [[390, 800, 'phone'], [320, 640, 'small']]) {
     await resize(w, h);
