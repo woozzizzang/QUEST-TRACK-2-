@@ -108,6 +108,7 @@
   ol.rank li.me { outline: 3px solid var(--accent); }
   ol.rank .date { color: var(--sub); font-size: 14px; align-self: center; }
   ol.rank .pts { margin-left: auto; }
+  .rank-note { margin: 0 0 10px; font-size: 16px; color: var(--text); }
   .empty { color: var(--sub); text-align: center; padding: 12px 0; margin: 0; }
   [hidden] { display: none !important; }
 </style>
@@ -151,6 +152,7 @@
   <!-- 이 기기 랭킹 -->
   <section class="card" id="ranking">
     <h2>🏆 이 기기 랭킹 (상위 10개)</h2>
+    <p class="rank-note" id="rank-note">내가 이 기기에서 한 기록만 나와요.</p>
     <div class="tabs" id="tabs" role="tablist"></div>
     <ol class="rank" id="rank-list"></ol>
     <p class="empty" id="rank-empty" hidden>아직 기록이 없어요. 한 판 해 보세요!</p>

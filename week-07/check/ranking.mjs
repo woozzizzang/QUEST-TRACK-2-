@@ -24,6 +24,16 @@ export default async ({ ev, shot, sleep, waitUntil, log, send }) => {
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
   await shot('00-login-slot-pc');
 
+  log('랭킹 안내 줄:', await ev(`(() => {
+    const el = document.getElementById('rank-note'), cs = getComputedStyle(el);
+    const parse = c => (c.match(/[\\d.]+/g) || []).map(Number);
+    const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const lum = ([r, g, b]) => 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    let bgEl = el, bg; for (; bgEl; bgEl = bgEl.parentElement) { const c = parse(getComputedStyle(bgEl).backgroundColor); if (c.length === 3 || (c.length === 4 && c[3] > 0.9)) { bg = c; break; } }
+    const [a, b] = [lum(parse(cs.color)), lum(bg)].sort((x, y) => y - x);
+    return '"' + el.textContent + '" · 글자 ' + cs.fontSize + ' · 대비 ' + ((a + 0.05) / (b + 0.05)).toFixed(2) + ' · 위 ' + el.previousElementSibling.tagName + ' · 아래 ' + el.nextElementSibling.id;
+  })()`));
+
   const fit = () => ev(`(() => {
     const w = document.documentElement.clientWidth;
     const bad = [...document.querySelectorAll('body *')].filter(e => { if (e.closest('[hidden]')) return false; const r = e.getBoundingClientRect(); return r.width && (r.right > w + 1 || r.left < -1); }).map(e => e.id || e.className);
