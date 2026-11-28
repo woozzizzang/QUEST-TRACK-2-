@@ -1,7 +1,8 @@
 // 내 게임(숲속 금화 모으기) 확인 시나리오
 //   node week-05/check/run.mjs week-05/index.html week-05/check/mygame.mjs
+// 슬라임 4색이 다 나오는 3스테이지(깊은 숲)에서 확인함. 스테이지 넘어가기는 mygame-stages.mjs 에서 따로 확인
 export default async ({ ev, down, up, tap, shot, sleep, waitUntil, log }) => {
-  await ev('localStorage.removeItem(BEST_KEY); bestTime = null; true');   // 지난번 확인 때 남은 기록을 지우고 시작
+  await ev('loadStage(2); localStorage.removeItem(bestKey()); bestTime = null; true');   // 지난번 확인 때 남은 기록을 지우고 시작
   log('그림 수:', await ev('Object.keys(images).length'), '/', await ev('Object.keys(IMAGE_FILES).length'));
   log('크기가 다른 그림:', await ev(`(() => {
     const want = { 'bg-back': [160, 272], 'bg-middle': [384, 272], 'ground': [176, 96] };
@@ -130,7 +131,7 @@ export default async ({ ev, down, up, tap, shot, sleep, waitUntil, log }) => {
   log('다 모은 뒤 상태:', await ev('state'), '/ 슬라임 동작', await ev('slimes.map(s => s.anim).join(",")'));
   await sleep(1000); await shot('08-won');
   const firstTime = await ev('playTime');
-  log('최고 기록: 새 기록', await ev('newRecord'), '/ 저장된 값', await ev('localStorage.getItem(BEST_KEY)'),
+  log('최고 기록: 새 기록', await ev('newRecord'), '/ 저장된 값', await ev('localStorage.getItem(bestKey())'),
       '/ 이번 시간', firstTime.toFixed(2));
 
   // 더 느리게 다 모으면 최고 기록이 바뀌지 않음
@@ -158,6 +159,7 @@ export default async ({ ev, down, up, tap, shot, sleep, waitUntil, log }) => {
   // 창을 다시 열어도(새로 고침) 최고 기록이 남아 있는지
   await ev('setTimeout(() => location.reload(), 0); true');
   await sleep(2000);
+  await ev('loadStage(2); true');        // 새로 열면 1스테이지라서 3스테이지로 다시 감
   log('새로 고침 뒤 최고 기록:', await ev('bestTime === null ? "없음" : bestTime.toFixed(2)'),
       '/ 처음 기록과 같음', Math.abs(await ev('bestTime') - firstTime) < 0.001);
   await tap('Space'); await sleep(300);

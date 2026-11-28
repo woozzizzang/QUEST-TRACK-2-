@@ -1,4 +1,4 @@
-// 내 게임: "처음 하는 사람" 흉내 봇으로 100판을 돌려 난이도를 숫자로 본다. (게임은 고치지 않음)
+// 내 게임: "처음 하는 사람" 흉내 봇으로 스테이지마다 100판을 돌려 난이도를 숫자로 본다. (게임은 고치지 않음)
 // 게임의 update() 를 그대로 빌려서 1/60초씩 빠르게 돌린다. 화면은 그리지 않는다.
 //   node week-05/check/run.mjs week-05/index.html week-05/check/mygame-bot.mjs
 //
@@ -14,7 +14,6 @@ export default async ({ ev, tap, sleep, log }) => {
   const r = await ev(`(() => {
     started = false;                       // 화면 쪽 반복은 멈추고 여기서 직접 돌림
     playSfx = () => {};
-    const savedBest = bestTime;
     saveBest = () => {};                   // 봇 기록은 저장하지 않음
     let seed = 12345;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -42,6 +41,8 @@ export default async ({ ev, tap, sleep, log }) => {
         if (Math.abs(kcx() - mid) < P.w / 2 - 10) return { dir: 0, jump: true };
         return { dir: toward(mid), jump: false };
       };
+      // 공중에 떠 있는 금화(밑에 섬 없음): 금화 밑에 가서 제자리 점프
+      if (S === 'G' && cur === 'G' && c.y + 4 < GROUND_TOP - KB.h && Math.abs(kcx() - c.x) < 4) return { dir: 0, jump: true };
       if (S === 'G' || cur === S) return { dir: toward(c.x), jump: false };
       if (lowPlatform(S)) return cur === 'G' || cur === null ? reachLow(S) : { dir: toward(c.x), jump: false };
       const L = stepFor(S);                   // 높은 발판: 옆의 낮은 발판 끝에서 뛰어 건너감
@@ -56,7 +57,11 @@ export default async ({ ev, tap, sleep, log }) => {
       return { dir: toward(c.x), jump: false };
     }
 
+    const all = [];
+    for (let n = 0; n < STAGES.length; n++) {
+    loadStage(n);
     const games = [];
+    all.push({ name: STAGES[n].name, games });
     for (let g = 0; g < RUNS; g++) {
       resetGame();
       const order = coins.map((c, i) => i).sort((a, b) => coins[a].x - coins[b].x);
@@ -107,20 +112,24 @@ export default async ({ ev, tap, sleep, log }) => {
       games.push({ result: state === 'won' ? 'clear' : state === 'over' ? 'over' : 'stop', time: playTime, got, hits, rolls, jumps,
                    gaveUp: gaveUp === null ? null : COIN_SPOTS[gaveUp].join(',') });
     }
+    }
     keys.ArrowLeft = keys.ArrowRight = false;
-    bestTime = savedBest;
-    resetGame();
-    return JSON.stringify(games);
+    loadStage(0);
+    return JSON.stringify(all);
   })()`);
-  const games = JSON.parse(r);
+  const all = JSON.parse(r);
   const secs = ((Date.now() - t0) / 1000).toFixed(1);
+  log(`스테이지 ${all.length}개 돌린 시간 ${secs}초`);
+  for (const [si, { name, games }] of all.entries()) {
+  log(`
+[스테이지 ${si + 1} · ${name}]`);
   const pct = n => Math.round(n / games.length * 100) + '%';
   const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length) : 0;
   const med = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
   const clears = games.filter(g => g.result === 'clear');
   const overs = games.filter(g => g.result === 'over');
   const stops = games.filter(g => g.result === 'stop');
-  log(`판 수: ${games.length} (돌린 시간 ${secs}초)`);
+  log(`판 수: ${games.length}`);
   log(`끝까지 다 모음: ${clears.length}판 (${pct(clears.length)}) / 하트 다 잃음: ${overs.length}판 (${pct(overs.length)}) / 봇이 길을 못 찾고 멈춤: ${stops.length}판`);
   if (clears.length) {
     const ts = clears.map(g => g.time);
@@ -145,5 +154,6 @@ export default async ({ ev, tap, sleep, log }) => {
     const where = {};
     for (const g of stops) where[g.gaveUp || '시간 끝'] = (where[g.gaveUp || '시간 끝'] || 0) + 1;
     log('봇이 멈춘 금화(가로칸,세로칸):', JSON.stringify(where));
+  }
   }
 };
